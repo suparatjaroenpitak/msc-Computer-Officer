@@ -1,0 +1,2 @@
+import type { MetadataRoute } from "next";
+export default function manifest(): MetadataRoute.Manifest { return { name: "MSC Exam Lab", short_name: "MSC Exam", description: "แอปติวนักวิชาการคอมพิวเตอร์แบบ Recall", start_url: "/", display: "standalone", background_color: "#f6f7fb", theme_color: "#1d4ed8", icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }] }; }
