@@ -3,9 +3,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
-import { BookOpenCheck, ClipboardCheck, FileSearch, Home, LogIn, LogOut, Sparkles } from "lucide-react";
+import { BookOpenCheck, ClipboardCheck, Home, LogIn, LogOut, Sparkles } from "lucide-react";
 
-const links = [{ href: "/", label: "หน้าหลัก", icon: Home }, { href: "/learn", label: "เรียน + Recall", icon: BookOpenCheck }, { href: "/quiz", label: "ทำข้อสอบ", icon: ClipboardCheck }, { href: "/library", label: "คลัง PDF", icon: FileSearch }];
+const links = [{ href: "/", label: "หน้าหลัก", icon: Home }, { href: "/learn", label: "เรียน + Recall", icon: BookOpenCheck }, { href: "/quiz", label: "ทำข้อสอบ", icon: ClipboardCheck }];
 
 export function TopNav() {
   const pathname = usePathname(); const { data: session } = useSession();

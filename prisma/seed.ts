@@ -1,16 +1,19 @@
 import { PrismaClient } from "@prisma/client";
-import { studyLessons } from "../lib/content";
+import { learnLessons, quizLessons } from "../lib/study-bank";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const aggregateSlugs = new Set(["curated-recall-all", "curated-exam-bank"]);
+  const lessons = [...learnLessons, ...quizLessons.filter((lesson) => !learnLessons.some((existing) => existing.slug === lesson.slug))]
+    .filter((lesson) => !aggregateSlugs.has(lesson.slug));
   const course = await prisma.course.upsert({
     where: { slug: "computer-officer" },
     update: { title: "นักวิชาการคอมพิวเตอร์: เรียนให้เข้าใจ จำให้นาน" },
     create: { slug: "computer-officer", title: "นักวิชาการคอมพิวเตอร์: เรียนให้เข้าใจ จำให้นาน", description: "บทเรียนและข้อสอบจากชุดเอกสารติว พร้อมระบบ Recall และทบทวนซ้ำ" },
   });
 
-  for (const [lessonIndex, lesson] of studyLessons.entries()) {
+  for (const [lessonIndex, lesson] of lessons.entries()) {
     const dbLesson = await prisma.lesson.upsert({
       where: { courseId_slug: { courseId: course.id, slug: lesson.slug } },
       update: { title: lesson.title, summary: lesson.summary, sortOrder: lessonIndex },
@@ -18,10 +21,10 @@ async function main() {
     });
     await prisma.card.deleteMany({ where: { lessonId: dbLesson.id } });
     await prisma.question.deleteMany({ where: { lessonId: dbLesson.id } });
-    await prisma.card.createMany({ data: lesson.cards.map((card, index) => ({ lessonId: dbLesson.id, prompt: card.prompt, answer: card.answer, explanation: card.explanation, source: card.source, difficulty: card.difficulty, sortOrder: index })) });
+    await prisma.card.createMany({ data: lesson.cards.map((card, index) => ({ id: card.id, lessonId: dbLesson.id, prompt: card.prompt, answer: card.answer, explanation: card.explanation, source: card.source, difficulty: card.difficulty, sortOrder: index })) });
     await prisma.question.createMany({ data: lesson.questions.map((question, index) => ({ lessonId: dbLesson.id, prompt: question.prompt, options: question.options, answerIndex: question.answerIndex, explanation: question.explanation, source: question.source, sortOrder: index })) });
   }
-  console.log(`Seeded ${studyLessons.length} lessons for ${course.title}`);
+  console.log(`Seeded ${lessons.length} lessons for ${course.title}`);
 }
 
 main().finally(() => prisma.$disconnect());

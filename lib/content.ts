@@ -5,6 +5,8 @@ export type StudyCard = {
   explanation: string;
   source: string;
   difficulty: "easy" | "medium" | "hard";
+  sourceId?: string;
+  page?: number;
 };
 
 export type StudyQuestion = {
@@ -14,6 +16,17 @@ export type StudyQuestion = {
   answerIndex: number | null;
   explanation: string;
   source: string;
+  sourceId?: string;
+  page?: number;
+};
+
+export type StudyNote = {
+  id: string;
+  title: string;
+  content: string;
+  source: string;
+  sourceId?: string;
+  page?: number;
 };
 
 export type StudyLesson = {
@@ -23,6 +36,7 @@ export type StudyLesson = {
   accent: string;
   cards: StudyCard[];
   questions: StudyQuestion[];
+  notes?: StudyNote[];
 };
 
 export const studyLessons: StudyLesson[] = [

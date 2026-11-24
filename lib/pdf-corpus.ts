@@ -7,6 +7,19 @@ export type PdfHit = { sourceId: string; sourceTitle: string; fileName: string; 
 
 export const pdfCorpus = rawCorpus as PdfCorpus;
 
+export function stripPageNumberLines(text: string) {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => {
+      const value = line.replace(/[\u200b\ufeff]/g, "").trim();
+      const isHeaderWithPageNumber = /(?:คู่มือสอบ|the best center|สำนักงานศาลยุติธรรม).*\d{1,4}\s*$/i.test(value);
+      return !isHeaderWithPageNumber && !/^\d{1,4}$/.test(value) && !/^หน้า\s*\d{1,4}$/i.test(value) && !/^[|_-]?\s*\d{1,4}\s*[|_-]?$/.test(value);
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const knownThaiTerms = [
   "เครือข่าย", "การสื่อสาร", "ฐานข้อมูล", "ความมั่นคงปลอดภัย", "ไซเบอร์", "ข้อมูลส่วนบุคคล", "คอมพิวเตอร์", "ระบบปฏิบัติการ", "ปัญญาประดิษฐ์", "การพัฒนาโปรแกรม", "ธุรกรรมทางอิเล็กทรอนิกส์", "พนักงานราชการ", "ศาลยุติธรรม", "กระทรวงสาธารณสุข", "cloud", "big data", "web application", "php", "ai", "pdpa",
 ];
@@ -29,7 +42,7 @@ function termsFor(query: string) {
 }
 
 function snippetFor(text: string, query: string) {
-  const compact = text.replace(/\s+/g, " ").trim();
+  const compact = stripPageNumberLines(text).replace(/\s+/g, " ").trim();
   const needle = termsFor(query).sort((a, b) => b.length - a.length)[0] ?? "";
   const at = compact.toLowerCase().indexOf(needle.toLowerCase());
   if (at < 0) return compact.slice(0, 260) + (compact.length > 260 ? "..." : "");
@@ -45,11 +58,12 @@ export function searchPdfCorpus(query: string, limit = 12): PdfHit[] {
   const hits: PdfHit[] = [];
   for (const source of pdfCorpus.sources) {
     for (const page of source.pages) {
-      const text = page.text.toLowerCase();
+      const cleanText = stripPageNumberLines(page.text);
+      const text = cleanText.toLowerCase();
       if (!text) continue;
       let score = text.includes(normalized) ? 10 : 0;
       for (const term of terms) if (text.includes(term)) score += term.length > 4 ? 2 : 1;
-      if (score > 0) hits.push({ sourceId: source.id, sourceTitle: source.title, fileName: source.fileName, page: page.page, snippet: snippetFor(page.text, normalized), score });
+      if (score > 0) hits.push({ sourceId: source.id, sourceTitle: source.title, fileName: source.fileName, page: page.page, snippet: snippetFor(cleanText, normalized), score });
     }
   }
   return hits.sort((a, b) => b.score - a.score || a.sourceId.localeCompare(b.sourceId) || a.page - b.page).slice(0, limit);
@@ -58,5 +72,5 @@ export function searchPdfCorpus(query: string, limit = 12): PdfHit[] {
 export function getPdfPage(sourceId: string, pageNumber: number) {
   const source = pdfCorpus.sources.find((item) => item.id === sourceId);
   const page = source?.pages.find((item) => item.page === pageNumber);
-  return source && page ? { source, page } : null;
+  return source && page ? { source, page: { ...page, text: stripPageNumberLines(page.text), charCount: stripPageNumberLines(page.text).length } } : null;
 }

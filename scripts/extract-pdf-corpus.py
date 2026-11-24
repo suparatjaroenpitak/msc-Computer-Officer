@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +20,22 @@ SOURCES = [
     ("health", "สำนักงานสาธารณสุขจังหวัดสระบุรี", "แนวข้อสอบ นักวิชาการคอมพิวเตอร์ สำนักงานสาธารณสุขจังหวัดสระบุรี (1).pdf"),
     ("industry", "กรมโรงงานอุตสาหกรรม", "แนวข้อสอบนักวิชาการคอมพิวเตอร์ กรมโรงงานอุตสาหกรรม.pdf"),
 ]
+
+
+def strip_page_number_lines(text: str) -> str:
+    lines = []
+    for line in text.replace("\r", "").split("\n"):
+        value = line.replace("\u200b", "").replace("\ufeff", "").strip()
+        if ("คู่มือสอบ" in value or "The Best Center" in value or "สำนักงานศาลยุติธรรม" in value) and re.search(r"\d{1,4}\s*$", value):
+            continue
+        if value.isdigit() and len(value) <= 4:
+            continue
+        if value.lower().startswith("หน้า ") and value[5:].strip().isdigit():
+            continue
+        if value and value.strip("|_-").strip().isdigit() and len(value.strip("|_-").strip()) <= 4:
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
 
 
 def sha256(path: Path) -> str:
@@ -42,7 +59,7 @@ def main() -> None:
         reader = PdfReader(str(path))
         pages = []
         for page_number, page in enumerate(reader.pages, start=1):
-            text = (page.extract_text() or "").replace("\x00", " ").strip()
+            text = strip_page_number_lines((page.extract_text() or "").replace("\x00", " "))
             pages.append({
                 "id": f"{source_id}-{page_number}",
                 "page": page_number,
