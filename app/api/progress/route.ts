@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ saved: false, reason: "guest" });
+  if (!session?.user?.id) return NextResponse.json({ error: "ต้องเข้าสู่ระบบด้วย Google ก่อนบันทึกความคืบหน้า" }, { status: 401 });
   const body = await request.json() as { cardId?: string; remembered?: boolean };
   if (!body.cardId) return NextResponse.json({ error: "cardId is required" }, { status: 400 });
   const remembered = Boolean(body.remembered);

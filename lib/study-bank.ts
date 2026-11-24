@@ -1,22 +1,18 @@
-import rawStudyBank from "@/content/curated-study-bank.json";
-import { studyLessons, type StudyLesson } from "@/lib/content";
+import catalog from "@/content/user-study-catalog.json";
+import type { StudyLessonMeta } from "@/lib/content";
 
-const pdfLessons = rawStudyBank.lessons as StudyLesson[];
+const lessons = catalog.lessons as StudyLessonMeta[];
 
-export const pdfRecallLesson = pdfLessons.find((lesson) => lesson.slug === "pdf-recall-all") ?? pdfLessons[0];
-export const pdfExamLesson = pdfLessons.find((lesson) => lesson.slug === "pdf-exam-bank") ?? pdfLessons[1];
-
-// Keep each curated topic as its own path. The aggregate decks stay internal so
-// the UI does not pile every card and question into one giant lesson.
-export const curatedTopicLessons: StudyLesson[] = pdfLessons.filter(
-  (lesson) => lesson.slug.startsWith("curated-") && !["curated-recall-all", "curated-exam-bank"].includes(lesson.slug),
+export const studyRecallLesson = lessons.find((lesson) => lesson.slug === "user-recall-all") ?? lessons[0];
+export const studyExamLesson = lessons.find((lesson) => lesson.slug === "user-exam-bank") ?? lessons[1];
+export const studyTopicLessons: StudyLessonMeta[] = lessons.filter(
+  (lesson) => lesson.slug.startsWith("user-") && !["user-recall-all", "user-exam-bank"].includes(lesson.slug),
 );
 
-// The original hand-written AI-friendly modules remain available after the PDF-derived topics.
-export const learnLessons: StudyLesson[] = [...curatedTopicLessons, ...studyLessons, pdfRecallLesson].filter(Boolean);
-export const quizLessons: StudyLesson[] = [
-  ...curatedTopicLessons.filter((lesson) => lesson.questions.length > 0),
-  ...studyLessons,
-  pdfExamLesson,
+// Only lightweight metadata is sent to the browser. Full lesson data is loaded by /api/study per selection.
+export const learnLessons: StudyLessonMeta[] = [...studyTopicLessons, studyRecallLesson].filter(Boolean);
+export const quizLessons: StudyLessonMeta[] = [
+  ...studyTopicLessons.filter((lesson) => lesson.questionCount > 0),
+  studyExamLesson,
 ].filter(Boolean);
-export const pdfBankStats = rawStudyBank.stats;
+export const studyBankStats = catalog.stats;

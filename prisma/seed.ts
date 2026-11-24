@@ -1,16 +1,17 @@
 import { PrismaClient } from "@prisma/client";
-import { learnLessons, quizLessons } from "../lib/study-bank";
+import rawStudyBank from "../content/user-study-bank.json";
+import type { StudyLesson } from "../lib/content";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const aggregateSlugs = new Set(["curated-recall-all", "curated-exam-bank"]);
-  const lessons = [...learnLessons, ...quizLessons.filter((lesson) => !learnLessons.some((existing) => existing.slug === lesson.slug))]
-    .filter((lesson) => !aggregateSlugs.has(lesson.slug));
+  const lessons = (rawStudyBank.lessons as StudyLesson[]).filter(
+    (lesson) => !["user-recall-all", "user-exam-bank"].includes(lesson.slug),
+  );
   const course = await prisma.course.upsert({
     where: { slug: "computer-officer" },
     update: { title: "นักวิชาการคอมพิวเตอร์: เรียนให้เข้าใจ จำให้นาน" },
-    create: { slug: "computer-officer", title: "นักวิชาการคอมพิวเตอร์: เรียนให้เข้าใจ จำให้นาน", description: "บทเรียนและข้อสอบจากชุดเอกสารติว พร้อมระบบ Recall และทบทวนซ้ำ" },
+    create: { slug: "computer-officer", title: "นักวิชาการคอมพิวเตอร์: เรียนให้เข้าใจ จำให้นาน", description: "บทเรียนและข้อสอบจากชุดข้อมูลใหม่ พร้อมระบบ Recall และทบทวนซ้ำ" },
   });
 
   for (const [lessonIndex, lesson] of lessons.entries()) {

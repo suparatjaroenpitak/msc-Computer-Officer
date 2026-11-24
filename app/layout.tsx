@@ -4,7 +4,7 @@ import { PwaRegister } from "@/components/PwaRegister";
 import { TopNav } from "@/components/TopNav";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "MSC Exam Lab | นักวิชาการคอมพิวเตอร์", description: "เรียนแบบเข้าใจง่าย ฝึก Recall และทำข้อสอบจากชุดเอกสารติว" };
+export const metadata: Metadata = { title: "MSC Exam Lab | นักวิชาการคอมพิวเตอร์", description: "เรียนแบบเข้าใจง่าย ฝึก Active Recall และทำบททดสอบจากชุดข้อมูลนักวิชาการคอมพิวเตอร์" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="th"><body suppressHydrationWarning><Providers><TopNav />{children}<PwaRegister /></Providers></body></html>;

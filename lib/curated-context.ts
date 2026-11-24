@@ -1,5 +1,9 @@
-import { curatedTopicLessons } from "@/lib/study-bank";
-import type { StudyCard, StudyNote, StudyQuestion } from "@/lib/content";
+import rawStudyBank from "@/content/user-study-bank.json";
+import type { StudyCard, StudyLesson, StudyNote, StudyQuestion } from "@/lib/content";
+
+const studyTopicLessons = (rawStudyBank.lessons as StudyLesson[]).filter(
+  (lesson) => lesson.slug.startsWith("user-") && !["user-recall-all", "user-exam-bank"].includes(lesson.slug),
+);
 
 export type CuratedAiHit = {
   lessonTitle: string;
@@ -54,10 +58,10 @@ function noteToHit(lessonTitle: string, lessonSlug: string, note: StudyNote): Cu
   return { lessonTitle, lessonSlug, kind: "note", prompt: note.title, answer: note.content, explanation: "เนื้อหาสรุปจากหน้าที่ผ่านการกรองและจัดหมวดแล้ว", source: note.source, page: note.page };
 }
 
-/** Search only AI-processed topic lessons, never the raw PDF corpus. */
+/** Search only the new user-provided study set. */
 export function searchCuratedStudyBank(query: string, limit = 8) {
   const terms = termsFrom(query);
-  const hits = curatedTopicLessons.flatMap((lesson) => [
+  const hits = studyTopicLessons.flatMap((lesson) => [
     ...(lesson.notes ?? []).map((note) => ({ item: noteToHit(lesson.title, lesson.slug, note), text: `${lesson.title} ${lesson.summary} ${note.content}` })),
     ...lesson.cards.map((card) => ({ item: cardToHit(lesson.title, lesson.slug, card), text: `${lesson.title} ${lesson.summary} ${card.prompt} ${card.answer} ${card.explanation}` })),
     ...lesson.questions.map((question) => ({ item: questionToHit(lesson.title, lesson.slug, question), text: `${lesson.title} ${lesson.summary} ${question.prompt} ${question.options.join(" ")} ${question.explanation}` })),

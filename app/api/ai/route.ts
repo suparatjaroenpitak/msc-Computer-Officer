@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { searchCuratedStudyBank } from "@/lib/curated-context";
+import { getRequiredApiSession } from "@/lib/require-auth";
 
 export async function POST(request: Request) {
+  const session = await getRequiredApiSession();
+  if (!session?.user?.id) return NextResponse.json({ error: "ต้องเข้าสู่ระบบด้วย Google ก่อนใช้งาน" }, { status: 401 });
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ยังไม่ได้ตั้งค่า GROQ_API_KEY" }, { status: 503 });
 
@@ -31,8 +34,8 @@ export async function POST(request: Request) {
       model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
       temperature: 0.35,
       messages: [
-        { role: "system", content: "คุณเป็นติวเตอร์นักวิชาการคอมพิวเตอร์ อธิบายอย่างถูกต้อง ชัดเจน และใช้เฉพาะข้อมูลอ้างอิงที่ผ่านการกลั่นเป็นการ์ดหรือข้อสอบแล้ว ห้ามอ้างหรือแต่งข้อความจาก PDF ดิบที่ไม่ได้อยู่ในบริบท" },
-        { role: "user", content: `หัวข้อ: ${body.topic}\nบริบทจากบทเรียน: ${body.summary ?? ""}\nบริบทจากเนื้อหากลั่นแล้ว:\n${curatedContext}\nงาน: ${instruction}\nให้ติดป้าย [จากเนื้อหากลั่นแล้ว] และ [AI เสริม] แยกกัน และอย่าสร้างมาตรา/ตัวเลขกฎหมายขึ้นเอง` },
+        { role: "system", content: "คุณเป็นติวเตอร์นักวิชาการคอมพิวเตอร์ อธิบายอย่างถูกต้อง ชัดเจน และใช้เฉพาะข้อมูลอ้างอิงจากชุดการ์ดหรือข้อสอบใหม่ที่อยู่ในบริบท ห้ามแต่งมาตรา ตัวเลข หรือเนื้อหาที่ไม่มีแหล่งอ้างอิง" },
+        { role: "user", content: `หัวข้อ: ${body.topic}\nบริบทจากบทเรียน: ${body.summary ?? ""}\nบริบทจากชุดข้อมูลใหม่:\n${curatedContext}\nงาน: ${instruction}\nให้ติดป้าย [จากชุดข้อมูลใหม่] และ [AI เสริม] แยกกัน และอย่าสร้างมาตรา/ตัวเลขกฎหมายขึ้นเอง` },
       ],
     }),
   });
