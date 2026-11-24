@@ -83,6 +83,8 @@ def topic_from_module(module_title: str) -> dict:
         return topic_for(481)
     if any(word in title for word in ["operating system", "computer architecture", "digital logic"]):
         return topic_for(421)
+    if any(word in title for word in ["คพร", "พนักงานราชการ", "บทเฉพาะกาล", "สิทธิประโยชน์"]):
+        return topic_for(331)
     if any(word in title for word in ["กฎหมาย", "ศาลยุติธรรม", "pdpa", "ธุรกรรม", "ราชการ"]):
         return topic_for(331)
     if "support" in title or "troubleshooting" in title:
@@ -96,6 +98,7 @@ def source_label(path: Path) -> str:
         "set-03": "ชุดที่ 3",
         "set-04": "ชุดที่ 4",
         "set-05": "ชุดที่ 5",
+        "set-06": "ชุดที่ 7.1",
     }
     return labels.get(path.stem, path.stem)
 
@@ -387,12 +390,13 @@ def build() -> None:
             "notes": [],
         })
 
+    additional_sources = [path.relative_to(ROOT).as_posix() for path in sorted(ADDITIONAL_SOURCE_DIR.glob("set-*.txt"))]
     stats = {
         "recallCards": len(recalls),
         "examQuestions": len(quizzes),
         "scoredQuestions": len(quizzes),
         "topics": len(TOPICS),
-        "source": ["content/user-study-source.txt", "content/additional-sources/set-02.txt", "content/additional-sources/set-03.txt", "content/additional-sources/set-04.txt", "content/additional-sources/set-05.txt"],
+        "source": ["content/user-study-source.txt", *additional_sources],
     }
     output = {
         "version": 1,
