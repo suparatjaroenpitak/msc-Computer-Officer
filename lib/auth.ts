@@ -5,7 +5,13 @@ import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  providers: [GoogleProvider({ clientId: process.env.GOOGLE_CLIENT_ID ?? "", clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "" })],
+  providers: [GoogleProvider({
+    clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+    // Google verifies the email address. This lets an existing user record
+    // created before Google OAuth was enabled attach to that Google account.
+    allowDangerousEmailAccountLinking: true,
+  })],
   session: { strategy: "database" },
   callbacks: { async session({ session, user }) { if (session.user) session.user.id = user.id; return session; } },
   pages: { signIn: "/" },
