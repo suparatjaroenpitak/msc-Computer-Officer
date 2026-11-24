@@ -11,7 +11,7 @@ export type StudyQuestion = {
   id: string;
   prompt: string;
   options: string[];
-  answerIndex: number;
+  answerIndex: number | null;
   explanation: string;
   source: string;
 };

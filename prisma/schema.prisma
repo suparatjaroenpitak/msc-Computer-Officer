@@ -107,7 +107,7 @@ model Question {
   lessonId    String
   prompt      String
   options     Json
-  answerIndex Int
+  answerIndex Int?
   explanation String
   source      String
   sortOrder   Int

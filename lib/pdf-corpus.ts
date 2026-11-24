@@ -15,6 +15,16 @@ function termsFor(query: string) {
   const normalized = query.toLowerCase().trim();
   const terms = normalized.split(/[\s,./:()\-]+/).filter((term) => term.length > 1);
   for (const term of knownThaiTerms) if (normalized.includes(term)) terms.push(term);
+  const aliases: Record<string, string[]> = {
+    pdpa: ["คุ้มครองข้อมูลส่วนบุคคล", "ข้อมูลส่วนบุคคล"],
+    ai: ["ปัญญาประดิษฐ์", "เทคโนโลยีปัญญาประดิษฐ์"],
+    osi: ["เครือข่าย", "การสื่อสาร"],
+    cloud: ["คลาวด์", "cloud computing"],
+    "big data": ["ข้อมูลขนาดใหญ่", "big data"],
+    router: ["เราเตอร์", "router"],
+    switch: ["สวิตช์", "switch"],
+  };
+  for (const [alias, replacements] of Object.entries(aliases)) if (normalized.includes(alias)) terms.push(...replacements);
   return [...new Set(terms)];
 }
 
