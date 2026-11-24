@@ -323,13 +323,40 @@ def difficulty(value: str) -> str:
     return "easy" if length < 120 else "medium" if length < 300 else "hard"
 
 
+def make_recall_prompt(content: str, topic: dict) -> str:
+    first = re.sub(r"^\d+\.\s*", "", content.splitlines()[0]).strip()
+    first = compact(first, 110)
+    if "องค์ประกอบ" in first:
+        return "องค์ประกอบของเรื่องนี้มีอะไรบ้าง?"
+    if "ประกอบด้วย" in first or "ประกอบไปด้วย" in first:
+        subject = re.split(r"ประกอบ(?:ไป)?ด้วย", first, maxsplit=1)[0].strip()
+        return f"{compact(subject, 90)} ประกอบด้วยอะไรบ้าง?"
+    if "ขั้นตอน" in first or "กระบวนการ" in first:
+        subject = re.split(r"(?:เช่น|ได้แก่|ให้เลือก|มีหลาย)", first, maxsplit=1)[0].strip()
+        return f"{compact(subject, 90)} มีขั้นตอนหรือวิธีการอย่างไร?"
+    if "ทำหน้าที่" in first or "มีหน้าที่" in first:
+        subject = re.split(r"(?:ทำหน้าที่|มีหน้าที่)", first, maxsplit=1)[0].strip()
+        return f"{compact(subject, 90)} มีหน้าที่อะไร?"
+    if "หมายถึง" in first or "หมายความว่า" in first:
+        subject = re.split(r"(?:หมายถึง|หมายความว่า)", first, maxsplit=1)[0].strip()
+        return f"{compact(subject, 90)} หมายถึงอะไร?"
+    if "แบ่งเป็น" in first:
+        subject = first.split("แบ่งเป็น", 1)[0].strip()
+        return f"{compact(subject, 90)} แบ่งเป็นอะไรบ้าง?"
+    if "คือ" in first:
+        subject = first.split("คือ", 1)[0].strip()
+        if 2 <= len(subject) <= 90:
+            return f"{subject} คืออะไร?"
+    return f"เนื้อหาส่วนนี้ในหมวด{topic['title']} อธิบายเรื่องอะไร?"
+
+
 def make_page_cards(source: dict, page: dict, topic: dict, blocks: list[str]) -> list[dict]:
     text = clean_page_text(page["text"])
     if len(text) < 80:
         return []
     return [{
         "id": f"curated-card-{source['id']}-{page['page']}-{block_index + 1}",
-        "prompt": "ลองนึกเอง: เนื้อหานี้มีใจความสำคัญอะไรบ้าง",
+        "prompt": make_recall_prompt(block, topic),
         "answer": block,
         "explanation": f"จัดเข้าหมวด {topic['title']} แล้ว แบ่งเป็นประเด็นสั้น ๆ เพื่อจำง่าย วิธีจำ: {topic['tip']}",
         "source": f"{source['title']} หน้า {page['page']}",
@@ -378,7 +405,7 @@ def make_content_question(record: dict, records: list[dict], index: int) -> dict
     options[0], options[answer_index] = options[answer_index], options[0]
     return {
         "id": f"content-q-{record['sourceId']}-{record['page']}-{record['blockIndex']}",
-        "prompt": "ข้อใดสรุปสาระสำคัญของเนื้อหาหน้านี้ได้ถูกต้องที่สุด",
+        "prompt": make_recall_prompt(record["summary"], record["topic"]),
         "options": options,
         "answerIndex": answer_index,
         "explanation": f"คำตอบคือสรุปเนื้อหาที่กลั่นจากหน้านี้: {answer}",

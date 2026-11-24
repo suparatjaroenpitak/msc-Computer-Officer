@@ -5,9 +5,12 @@ import { useEffect, useState } from "react";
 
 export function SpeakButton({ text }: { text: string }) {
   const [speaking, setSpeaking] = useState(false);
-  const supported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const [supported, setSupported] = useState(false);
 
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+  useEffect(() => {
+    setSupported("speechSynthesis" in window);
+    return () => window.speechSynthesis?.cancel();
+  }, []);
 
   const speak = () => {
     if (!supported) return;

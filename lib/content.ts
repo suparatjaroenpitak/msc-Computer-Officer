@@ -39,6 +39,16 @@ export type StudyLesson = {
   notes?: StudyNote[];
 };
 
+export type StudyLessonMeta = {
+  slug: string;
+  title: string;
+  summary: string;
+  accent: string;
+  cardCount: number;
+  questionCount: number;
+  noteCount: number;
+};
+
 export const studyLessons: StudyLesson[] = [
   {
     slug: "network", title: "ระบบเครือข่ายแบบเข้าใจง่าย", summary: "รู้จักอุปกรณ์ สื่อกลาง OSI และคำถามที่ออกสอบบ่อย", accent: "blue",
