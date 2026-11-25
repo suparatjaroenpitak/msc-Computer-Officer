@@ -28,9 +28,12 @@ function cleanAiText(value: string) {
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/^\s*#{1,6}\s*/gm, "")
     .replace(/^\s*[-*+•]\s+/gm, "")
+    .replace(/(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)/g, "$1 × $2")
+    .replace(/(\d+(?:\.\d+)?)\s*\^\s*(\d+(?:\.\d+)?)/g, "$1 ยกกำลัง $2")
     .replace(/[*_~\x60>|]/g, "")
-    .replace(/[^\p{L}\p{M}\p{N}\s.,:;!?()\/+\-%]/gu, "")
+    .replace(/[^\p{L}\p{M}\p{N}\s.,:;!?()\/+\-%=^<>&×÷√≤≥≠₀₁₂₃₄₅₆₇₈₉⁰¹²³⁴⁵⁶⁷⁸⁹]/gu, "")
     .replace(/[ \t]+/g, " ")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -188,14 +191,18 @@ export async function POST(request: Request) {
     "ตอบเฉพาะข้อมูลของข้อที่กำลังเปิดอยู่ ห้ามดึงหรือผสมข้อมูลจากหัวข้ออื่น",
     "ถ้าข้อมูลไม่พอ ให้บอกตรง ๆ ว่ายังไม่มีข้อมูลในข้อนี้ ห้ามแต่งมาตรา ตัวเลข หรือคำตอบใหม่",
     "ใช้ภาษาไทยที่อ่านง่าย ประโยคสั้น และรักษาสระ วรรณยุกต์ และเครื่องหมายภาษาไทยให้ครบ",
+    "ห้ามใช้ตาราง Markdown โค้ดบล็อก หรือการเขียนตัวเลขติดกันจนอ่านเป็นอีกตัวเลขหนึ่ง",
+    "ถ้ามีการคำนวณ ให้แยกเป็นบรรทัด สูตร / แทนค่า / คำตอบ และเขียนเลขยกกำลังเป็นคำว่า ยกกำลัง เช่น 2 ยกกำลัง 8",
     generateMode ? "ตอบเป็น JSON เท่านั้นในรูปแบบ {\"items\":[{\"prompt\":\"...\",\"answer\":\"...\",\"explanation\":\"...\",\"options\":[\"...\",\"...\",\"...\",\"...\"],\"answerIndex\":0}]} โดย generate-recall ไม่ต้องใส่ options และ generate-quiz ต้องใส่ options 4 ตัวเลือก" : "",
     "สำหรับงานอธิบายทั่วไป ใช้หัวข้อสั้น ๆ: คำตอบสั้น / อธิบายง่าย / วิธีจำ / จุดที่มักสับสน",
   ].filter(Boolean).join("\n");
   const userPrompt = ["หมวด: " + body.topic, "สรุปหมวด: " + (body.summary ?? ""), "งานที่ต้องทำ: " + instruction, currentItem].join("\n\n");
-  const model = process.env.GROQ_MODEL ?? "openai/gpt-oss-20b";
+  const model = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
   const requestBody: Record<string, unknown> = {
     model,
     temperature: generateMode ? 0.2 : 0.25,
+    reasoning_effort: "low",
+    max_completion_tokens: 900,
     messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
   };
   if (generateMode) requestBody.response_format = { type: "json_object" };

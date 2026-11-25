@@ -28,6 +28,22 @@ function cleanAiText(value: string) {
     .trim();
 }
 
+function normalizeAiText(value: string) {
+  return value
+    .replace(/\x60\x60\x60[\s\S]*?\x60\x60\x60/g, (block) => block.replace(/\x60\x60\x60[a-zA-Z]*\n?/g, ""))
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .replace(/^\s*[-*+•]\s+/gm, "")
+    .replace(/(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)/g, "$1 × $2")
+    .replace(/(\d+(?:\.\d+)?)\s*\^\s*(\d+(?:\.\d+)?)/g, "$1 ยกกำลัง $2")
+    .replace(/[*_~\x60>|]/g, "")
+    .replace(/[^\p{L}\p{M}\p{N}\s.,:;!?()\/+\-%=^<>&×÷√≤≥≠₀₁₂₃₄₅₆₇₈₉⁰¹²³⁴⁵⁶⁷⁸⁹]/gu, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function AICoach({
   topic,
   summary,
@@ -63,7 +79,7 @@ export function AICoach({
         body: JSON.stringify({ topic, summary, item, mode }),
       });
       const data = await response.json() as { content?: string; error?: string; sources?: AiSource[]; imageUrl?: string; savedIds?: string[]; saveError?: string };
-      setAnswer(cleanAiText(data.content ?? data.error ?? "ยังไม่มีคำตอบ"));
+      setAnswer(normalizeAiText(data.content ?? data.error ?? "ยังไม่มีคำตอบ"));
       setSources(data.sources ?? []);
       setImageUrl(data.imageUrl ?? "");
       setSavedMessage(data.saveError ?? (data.savedIds?.length ? `บันทึกลงฐานข้อมูลแล้ว ${data.savedIds.length} รายการ` : ""));

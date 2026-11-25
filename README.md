@@ -33,7 +33,7 @@ Google OAuth callback URL: `http://localhost:3000/api/auth/callback/google`
 
 ```env
 GROQ_API_KEY="วางคีย์ Groq ของคุณตรงนี้"
-GROQ_MODEL="openai/gpt-oss-20b"
+GROQ_MODEL="openai/gpt-oss-120b"
 ```
 
 4. ปิดแล้วเปิด `npm run dev` ใหม่ จากนั้นเข้าสู่ระบบ Google และกดปุ่ม AI Coach ในหน้าเรียน
