@@ -2,8 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, RotateCcw, Sparkles, XCircle } from "lucide-react";
-import type { StudyLesson, StudyLessonMeta } from "@/lib/content";
+import type { StudyLesson, StudyLessonMeta, StudyQuestion } from "@/lib/content";
 import { SpeakButton } from "@/components/SpeakButton";
+
+function shuffle<T>(items: T[]) {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[randomIndex]] = [result[randomIndex], result[index]];
+  }
+  return result;
+}
+
+function randomizeQuestions(questions: StudyQuestion[]) {
+  return shuffle(questions).map((question) => {
+    const optionIndexes = shuffle(question.options.map((_, index) => index));
+    return {
+      ...question,
+      options: optionIndexes.map((index) => question.options[index]),
+      answerIndex: question.answerIndex === null ? null : optionIndexes.indexOf(question.answerIndex),
+    };
+  });
+}
 
 export function QuizShell({ lessons }: { lessons: StudyLessonMeta[] }) {
   const [selectedSlug, setSelectedSlug] = useState(lessons[0]?.slug ?? "");
@@ -13,6 +33,7 @@ export function QuizShell({ lessons }: { lessons: StudyLessonMeta[] }) {
   const [choice, setChoice] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const slug = new URLSearchParams(window.location.search).get("lesson");
@@ -30,16 +51,21 @@ export function QuizShell({ lessons }: { lessons: StudyLessonMeta[] }) {
     setFinished(false);
     fetch(`/api/study?mode=quiz&slug=${encodeURIComponent(selectedSlug)}`, { signal: controller.signal })
       .then((response) => response.ok ? response.json() as Promise<StudyLesson> : null)
-      .then((payload) => { if (payload) setLesson(payload); })
+      .then((payload) => {
+        if (payload) setLesson({ ...payload, questions: randomizeQuestions(payload.questions) });
+      })
       .catch(() => undefined)
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [selectedSlug]);
+  }, [selectedSlug, attempt]);
 
   const questions = lesson?.questions ?? [];
   const question = questions[questionIndex];
   const scoredTotal = questions.filter((item) => item.answerIndex !== null).length;
-  const reset = (slug = selectedSlug) => setSelectedSlug(slug);
+  const reset = (slug = selectedSlug) => {
+    setSelectedSlug(slug);
+    setAttempt((value) => value + 1);
+  };
   const submit = () => {
     if (!lesson || !question || choice === null) return;
     const nextScore = score + (question.answerIndex !== null && choice === question.answerIndex ? 1 : 0);

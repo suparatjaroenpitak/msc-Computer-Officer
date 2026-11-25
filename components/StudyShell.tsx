@@ -6,6 +6,15 @@ import type { StudyLesson, StudyLessonMeta } from "@/lib/content";
 import { AICoach } from "@/components/AICoach";
 import { SpeakButton } from "@/components/SpeakButton";
 
+function shuffle<T>(items: T[]) {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[randomIndex]] = [result[randomIndex], result[index]];
+  }
+  return result;
+}
+
 export function StudyShell({ lessons }: { lessons: StudyLessonMeta[] }) {
   const [selectedSlug, setSelectedSlug] = useState(lessons[0]?.slug ?? "");
   const [lesson, setLesson] = useState<StudyLesson | null>(null);
@@ -30,7 +39,9 @@ export function StudyShell({ lessons }: { lessons: StudyLessonMeta[] }) {
     setRevealed(false);
     fetch(`/api/study?mode=learn&slug=${encodeURIComponent(selectedSlug)}`, { signal: controller.signal })
       .then((response) => response.ok ? response.json() as Promise<StudyLesson> : null)
-      .then((payload) => { if (payload) setLesson(payload); })
+      .then((payload) => {
+        if (payload) setLesson({ ...payload, cards: shuffle(payload.cards) });
+      })
       .catch(() => undefined)
       .finally(() => setLoading(false));
     return () => controller.abort();
