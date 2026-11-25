@@ -99,6 +99,17 @@ def source_label(path: Path) -> str:
         "set-04": "ชุดที่ 4",
         "set-05": "ชุดที่ 5",
         "set-06": "ชุดที่ 7.1",
+        "set-07": "Computer Fundamentals 1500",
+        "set-08": "Modern Information Technology 1500",
+        "set-09": "Information Cyber Security 1500",
+        "set-10": "System Development Database 1500",
+        "set-11": "Computer Networking 1500",
+        "set-12": "Troubleshooting IT 1500",
+        "set-13": "Number Systems Logic 1500",
+        "set-14": "Software Application Packages 1500",
+        "set-15": "Operating System 1500",
+        "set-16": "Hardware Computer Equipment 1500",
+        "set-17": "Thai Laws 12000",
     }
     return labels.get(path.stem, path.stem)
 
@@ -114,6 +125,322 @@ def make_extra_card(prompt: str, answer: str, topic: dict, source: str, card_id:
         "sourceId": "user-study-attachments",
         "topic": topic["slug"],
     }
+
+
+def topic_from_computer_section(section: str) -> dict:
+    title = section.casefold()
+    if any(word in title for word in ["เครือข่าย", "อินเทอร์เน็ต", "ส่งไฟล์", "อัตรารับส่ง"]):
+        return topic_for(111)
+    if "ความปลอดภัย" in title:
+        return topic_for(251)
+    if "ฐานข้อมูล" in title:
+        return topic_for(171)
+    if "เว็บ" in title or "ข้อมูลและโปรแกรม" in title:
+        return topic_for(211)
+    if any(word in title for word in ["ระบบปฏิบัติการ", "ระบบไฟล์"]):
+        return topic_for(86)
+    if any(word in title for word in ["สถาปัตยกรรม", "ประวัติ"]):
+        return topic_for(31)
+    if any(word in title for word in ["ฮาร์ดแวร์", "หน่วยความจำ", "อุปกรณ์", "raid", "ภาพดิจิทัล"]):
+        return topic_for(61)
+    if any(word in title for word in ["บำรุงรักษา", "เทคโนโลยีประยุกต์"]):
+        return topic_for(391)
+    return topic_for(1)
+
+
+def parse_computer_fundamentals_source(path: Path) -> tuple[list[dict], list[dict]]:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    label = source_label(path)
+    recalls: list[dict] = []
+    quiz_items: dict[int, dict] = {}
+    answer_key: dict[int, dict] = {}
+    mode = ""
+    section = label
+    pending_recall: dict | None = None
+    current_question: dict | None = None
+
+    def flush_recall() -> None:
+        nonlocal pending_recall
+        if pending_recall and pending_recall.get("answer"):
+            recalls.append(pending_recall)
+        pending_recall = None
+
+    def flush_question() -> None:
+        nonlocal current_question
+        if current_question and len(current_question["options"]) == 4:
+            quiz_items[current_question["number"]] = current_question
+        current_question = None
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("="):
+            continue
+        if line.startswith("PART 1"):
+            flush_question()
+            flush_recall()
+            mode = "recall"
+            continue
+        if line.startswith("PART 2"):
+            flush_recall()
+            mode = "quiz"
+            continue
+        if line.startswith("PART 3"):
+            flush_question()
+            mode = "answer"
+            continue
+        section_match = re.match(r"^---\s*(.+?)\s*---$", line)
+        if section_match:
+            section = section_match.group(1).strip()
+            continue
+
+        if mode == "recall":
+            answer_match = re.match(r"^ตอบ\s*:\s*(.+)$", line)
+            if answer_match and pending_recall:
+                answer = answer_match.group(1).strip()
+                explanation = ""
+                if "| วิธีคิด:" in answer:
+                    answer, explanation = answer.split("| วิธีคิด:", 1)
+                pending_recall["answer"] = answer.strip()
+                pending_recall["explanation"] = explanation.strip()
+                flush_recall()
+                continue
+            question_match = re.match(r"^AR(\d+)\.\s*(.+)$", line)
+            if question_match:
+                flush_recall()
+                topic = topic_from_computer_section(section)
+                pending_recall = {
+                    "number": int(question_match.group(1)),
+                    "prompt": question_match.group(2).strip(),
+                    "answer": "",
+                    "explanation": "",
+                    "topic": topic,
+                    "source": f"{label} · {section}",
+                    "sourceId": "user-set-07",
+                    "id": f"user-set-07-recall-{int(question_match.group(1)):04d}",
+                }
+                continue
+
+        if mode == "quiz":
+            question_match = re.match(r"^MC(\d+)\.\s*(.+)$", line)
+            if question_match:
+                flush_question()
+                topic = topic_from_computer_section(section)
+                current_question = {
+                    "number": int(question_match.group(1)),
+                    "prompt": question_match.group(2).strip(),
+                    "options": [],
+                    "answer": "",
+                    "explanation": "",
+                    "topic": topic,
+                    "source": f"{label} · {section}",
+                    "sourceId": "user-set-07",
+                    "id": f"user-set-07-quiz-{int(question_match.group(1)):04d}",
+                }
+                continue
+            option_match = re.match(r"^([A-D])\.\s*(.+)$", line)
+            if option_match and current_question:
+                current_question["options"].append(option_match.group(2).strip())
+                continue
+
+        if mode == "answer":
+            answer_match = re.match(r"^MC(\d+)\.\s*([A-D])\.\s*(.*)$", line)
+            if answer_match:
+                answer_key[int(answer_match.group(1))] = {
+                    "answer": answer_match.group(2),
+                    "answerText": answer_match.group(3).strip(),
+                    "explanation": "",
+                }
+                continue
+            reason_match = re.match(r"^เหตุผล\s*:\s*(.+)$", line)
+            if reason_match:
+                answer_number = max(answer_key) if answer_key else 0
+                if answer_number:
+                    answer_key[answer_number]["explanation"] = reason_match.group(1).strip()
+
+    flush_question()
+    flush_recall()
+
+    quizzes: list[dict] = []
+    for number in sorted(quiz_items):
+        question = quiz_items[number]
+        key = answer_key.get(number)
+        if not key:
+            raise ValueError(f"ไม่พบเฉลย Computer Fundamentals ข้อ {number}")
+        question["answer"] = key["answer"]
+        question["explanation"] = key["explanation"] or f"เฉลย {key['answer']}. {key['answerText']}"
+        quizzes.append(question)
+
+    if len(recalls) != 500:
+        raise ValueError(f"Computer Fundamentals ต้องมี Recall 500 ข้อ แต่พบ {len(recalls)} ข้อ")
+    if len(quizzes) != 1000:
+        raise ValueError(f"Computer Fundamentals ต้องมีข้อสอบ 1000 ข้อ แต่พบ {len(quizzes)} ข้อ")
+    return recalls, quizzes
+
+
+def topic_from_structured_source(path: Path, section: str) -> dict:
+    stem = path.stem
+    title = section.casefold()
+    if stem == "set-08":
+        return topic_for(291)
+    if stem == "set-09":
+        return topic_for(251)
+    if stem == "set-10":
+        return topic_for(171) if any(word in title for word in ["sql", "database", "ฐานข้อมูล"]) else topic_for(211)
+    if stem == "set-11":
+        return topic_for(111)
+    if stem == "set-12":
+        if "เครือข่าย" in title:
+            return topic_for(111)
+        if "ฮาร์ดแวร์" in title:
+            return topic_for(61)
+        if "ระบบปฏิบัติการ" in title:
+            return topic_for(86)
+        return topic_for(391)
+    if stem == "set-13":
+        return topic_for(1)
+    if stem == "set-14":
+        return topic_for(391)
+    if stem == "set-15":
+        return topic_for(86)
+    if stem == "set-16":
+        return topic_for(61)
+    if stem == "set-17":
+        return topic_for(331)
+    return topic_for(391)
+
+
+def parse_structured_source(path: Path) -> tuple[list[dict], list[dict]]:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    label = source_label(path)
+    recalls: list[dict] = []
+    quizzes: list[dict] = []
+    mode = ""
+    section = label
+    pending_recall: dict | None = None
+    current_question: dict | None = None
+
+    def current_topic() -> dict:
+        return topic_from_structured_source(path, section)
+
+    def flush_recall() -> None:
+        nonlocal pending_recall
+        if pending_recall and pending_recall.get("answer"):
+            recalls.append(pending_recall)
+        pending_recall = None
+
+    def flush_question() -> None:
+        nonlocal current_question
+        if current_question:
+            if len(current_question["options"]) != 4:
+                raise ValueError(f"ตัวเลือกไม่ครบ 4 ข้อใน {path.name} ข้อ {current_question['number']}")
+            if current_question.get("answer") not in "ABCD":
+                raise ValueError(f"ไม่พบเฉลยใน {path.name} ข้อ {current_question['number']}")
+            quizzes.append(current_question)
+        current_question = None
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("=") and not line.startswith("==="):
+            continue
+        lowered = line.casefold()
+        if "active recall" in lowered:
+            flush_question()
+            flush_recall()
+            mode = "recall"
+            continue
+        if "multiple choice" in lowered:
+            flush_recall()
+            mode = "quiz"
+            continue
+
+        if line.startswith(("MODULE", "กรณีศึกษา", "ชุด A", "ชุด B", "ชุด C", "ชุด D")):
+            section = line
+            continue
+        if line.startswith("---") or line.startswith("===") or line.startswith("=========="):
+            cleaned = re.sub(r"^[=\-]+|[=\-]+$", "", line).strip()
+            if cleaned:
+                section = cleaned
+            continue
+        if re.match(r"^\d+\.\s+พระราชบัญญัติ", line):
+            section = line
+            continue
+
+        if mode == "recall":
+            answer_match = re.match(r"^ตอบ\s*:\s*(.+)$", line)
+            if answer_match and pending_recall:
+                answer = answer_match.group(1).strip()
+                explanation = ""
+                if "| วิธีคิด:" in answer:
+                    answer, explanation = answer.split("| วิธีคิด:", 1)
+                pending_recall["answer"] = answer.strip()
+                pending_recall["explanation"] = explanation.strip()
+                flush_recall()
+                continue
+            question_match = re.match(r"^(?:AR|R)\s*(\d+)\.\s*(.+)$", line) or re.match(r"^(\d{4})\.\s*(.+)$", line)
+            if question_match:
+                flush_recall()
+                number = int(question_match.group(1))
+                topic = current_topic()
+                pending_recall = {
+                    "number": number,
+                    "prompt": question_match.group(2).strip(),
+                    "answer": "",
+                    "explanation": "",
+                    "topic": topic,
+                    "source": f"{label} · {section}",
+                    "sourceId": f"user-{path.stem}",
+                    "id": f"user-{path.stem}-recall-{number:04d}",
+                }
+                continue
+
+        if mode == "quiz":
+            question_match = (
+                re.match(r"^(?:MCQ|MC|Q)\s*(\d+)\.\s*(.+)$", line)
+                or re.match(r"^(\d{4})\.\s*(.+)$", line)
+            )
+            if question_match:
+                flush_question()
+                number = int(question_match.group(1))
+                topic = current_topic()
+                current_question = {
+                    "number": number,
+                    "prompt": question_match.group(2).strip(),
+                    "options": [],
+                    "answer": "",
+                    "explanation": "",
+                    "topic": topic,
+                    "source": f"{label} · {section}",
+                    "sourceId": f"user-{path.stem}",
+                    "id": f"user-{path.stem}-quiz-{number:04d}",
+                }
+                continue
+            option_match = re.match(r"^([A-D])\.\s*(.+)$", line)
+            if option_match and current_question:
+                current_question["options"].append(option_match.group(2).strip())
+                continue
+            answer_match = re.match(r"^เฉลย\s*:\s*([A-D])(?:\.\s*(.*))?$", line)
+            if answer_match and current_question:
+                current_question["answer"] = answer_match.group(1)
+                current_question["answerText"] = (answer_match.group(2) or "").strip()
+                continue
+            reason_match = re.match(r"^เหตุผล\s*:\s*(.+)$", line)
+            if reason_match and current_question:
+                current_question["explanation"] = reason_match.group(1).strip()
+                continue
+            reference_match = re.match(r"^อ้างอิง\s*:\s*(.+)$", line)
+            if reference_match and current_question:
+                reference = reference_match.group(1).strip()
+                current_question["explanation"] = f"{current_question.get('explanation') or ''} อ้างอิง: {reference}".strip()
+
+    flush_question()
+    flush_recall()
+    expected_recalls = 4000 if path.stem == "set-17" else 500
+    expected_quizzes = 8000 if path.stem == "set-17" else 1000
+    if len(recalls) != expected_recalls:
+        raise ValueError(f"{path.name} ต้องมี Recall {expected_recalls} ข้อ แต่พบ {len(recalls)} ข้อ")
+    if len(quizzes) != expected_quizzes:
+        raise ValueError(f"{path.name} ต้องมีข้อสอบ {expected_quizzes} ข้อ แต่พบ {len(quizzes)} ข้อ")
+    return recalls, quizzes
 
 
 def parse_additional_source(path: Path) -> tuple[list[dict], list[dict]]:
@@ -296,7 +623,13 @@ def parse_source() -> tuple[list[dict], list[dict]]:
     additional_recalls: list[dict] = []
     additional_quizzes: list[dict] = []
     for path in sorted(ADDITIONAL_SOURCE_DIR.glob("set-*.txt")):
-        file_recalls, file_quizzes = parse_additional_source(path)
+        if path.stem == "set-07":
+            parser = parse_computer_fundamentals_source
+        elif path.stem in {f"set-{number:02d}" for number in range(8, 18)}:
+            parser = parse_structured_source
+        else:
+            parser = parse_additional_source
+        file_recalls, file_quizzes = parser(path)
         additional_recalls.extend(file_recalls)
         additional_quizzes.extend(file_quizzes)
 
