@@ -14,7 +14,7 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>\"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character] ?? character);
 }
 
-export function certificateSvg({ title, completed, total, accuracy, recipient = "ผู้เรียน" }: CertificateActionsProps, signatureDataUrl = "") {
+function certificateSvg({ title, completed, total, accuracy, recipient = "ผู้เรียน" }: CertificateActionsProps, signatureDataUrl = "") {
   const date = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
   const safeTitle = escapeHtml(title);
   const safeDate = escapeHtml(date);
