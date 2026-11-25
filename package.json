@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "vercel-build": "prisma generate && prisma migrate deploy && tsx prisma/seed.ts --if-needed && next build",
+    "vercel-build": "prisma generate && tsx scripts/deploy-db-migration.ts && tsx prisma/seed.ts --if-needed && next build",
     "start": "next start",
     "db:generate": "prisma generate",
     "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:vercel": "tsx scripts/deploy-db-migration.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:if-needed": "tsx prisma/seed.ts --if-needed",

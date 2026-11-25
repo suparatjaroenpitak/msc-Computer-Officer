@@ -3,32 +3,32 @@
 -- It can be deployed on the existing Vercel database without deleting users,
 -- OAuth sessions, progress, quiz attempts, or legacy application data.
 
-CREATE TABLE IF NOT EXISTS "Course" (
+CREATE TABLE IF NOT EXISTS "StudyCourse" (
   "id" TEXT NOT NULL,
   "slug" TEXT NOT NULL,
   "title" TEXT NOT NULL,
   "description" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "Course_pkey" PRIMARY KEY ("id")
+  CONSTRAINT "StudyCourse_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "Course_slug_key" ON "Course"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "StudyCourse_slug_key" ON "StudyCourse"("slug");
 
-CREATE TABLE IF NOT EXISTS "Lesson" (
+CREATE TABLE IF NOT EXISTS "StudyLesson" (
   "id" TEXT NOT NULL,
   "courseId" TEXT NOT NULL,
   "slug" TEXT NOT NULL,
   "title" TEXT NOT NULL,
   "summary" TEXT NOT NULL,
   "sortOrder" INTEGER NOT NULL,
-  CONSTRAINT "Lesson_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "Lesson_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "Course"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT "StudyLesson_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "StudyLesson_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "StudyCourse"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "Lesson_courseId_slug_key" ON "Lesson"("courseId", "slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "StudyLesson_courseId_slug_key" ON "StudyLesson"("courseId", "slug");
 
-CREATE TABLE IF NOT EXISTS "Card" (
+CREATE TABLE IF NOT EXISTS "StudyCard" (
   "id" TEXT NOT NULL,
   "lessonId" TEXT NOT NULL,
   "prompt" TEXT NOT NULL,
@@ -37,13 +37,13 @@ CREATE TABLE IF NOT EXISTS "Card" (
   "source" TEXT NOT NULL,
   "difficulty" TEXT NOT NULL DEFAULT 'easy',
   "sortOrder" INTEGER NOT NULL,
-  CONSTRAINT "Card_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "Card_lessonId_fkey" FOREIGN KEY ("lessonId") REFERENCES "Lesson"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT "StudyCard_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "StudyCard_lessonId_fkey" FOREIGN KEY ("lessonId") REFERENCES "StudyLesson"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS "Card_lessonId_sortOrder_idx" ON "Card"("lessonId", "sortOrder");
+CREATE INDEX IF NOT EXISTS "StudyCard_lessonId_sortOrder_idx" ON "StudyCard"("lessonId", "sortOrder");
 
-CREATE TABLE IF NOT EXISTS "Question" (
+CREATE TABLE IF NOT EXISTS "StudyQuestion" (
   "id" TEXT NOT NULL,
   "lessonId" TEXT NOT NULL,
   "prompt" TEXT NOT NULL,
@@ -52,13 +52,13 @@ CREATE TABLE IF NOT EXISTS "Question" (
   "explanation" TEXT NOT NULL,
   "source" TEXT NOT NULL,
   "sortOrder" INTEGER NOT NULL,
-  CONSTRAINT "Question_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "Question_lessonId_fkey" FOREIGN KEY ("lessonId") REFERENCES "Lesson"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT "StudyQuestion_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "StudyQuestion_lessonId_fkey" FOREIGN KEY ("lessonId") REFERENCES "StudyLesson"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS "Question_lessonId_sortOrder_idx" ON "Question"("lessonId", "sortOrder");
+CREATE INDEX IF NOT EXISTS "StudyQuestion_lessonId_sortOrder_idx" ON "StudyQuestion"("lessonId", "sortOrder");
 
-CREATE TABLE IF NOT EXISTS "CardProgress" (
+CREATE TABLE IF NOT EXISTS "StudyCardProgress" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   "cardId" TEXT NOT NULL,
@@ -67,28 +67,28 @@ CREATE TABLE IF NOT EXISTS "CardProgress" (
   "wrongCount" INTEGER NOT NULL DEFAULT 0,
   "nextReviewAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "lastReviewedAt" TIMESTAMP(3),
-  CONSTRAINT "CardProgress_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "CardProgress_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT "CardProgress_cardId_fkey" FOREIGN KEY ("cardId") REFERENCES "Card"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT "StudyCardProgress_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "StudyCardProgress_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "StudyCardProgress_cardId_fkey" FOREIGN KEY ("cardId") REFERENCES "StudyCard"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "CardProgress_userId_cardId_key" ON "CardProgress"("userId", "cardId");
-CREATE INDEX IF NOT EXISTS "CardProgress_userId_nextReviewAt_idx" ON "CardProgress"("userId", "nextReviewAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "StudyCardProgress_userId_cardId_key" ON "StudyCardProgress"("userId", "cardId");
+CREATE INDEX IF NOT EXISTS "StudyCardProgress_userId_nextReviewAt_idx" ON "StudyCardProgress"("userId", "nextReviewAt");
 
-CREATE TABLE IF NOT EXISTS "QuizAttempt" (
+CREATE TABLE IF NOT EXISTS "StudyQuizAttempt" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   "lessonSlug" TEXT NOT NULL,
   "score" INTEGER NOT NULL,
   "total" INTEGER NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "QuizAttempt_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "QuizAttempt_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT "StudyQuizAttempt_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "StudyQuizAttempt_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS "QuizAttempt_userId_createdAt_idx" ON "QuizAttempt"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "StudyQuizAttempt_userId_createdAt_idx" ON "StudyQuizAttempt"("userId", "createdAt");
 
-CREATE TABLE IF NOT EXISTS "GeneratedStudyItem" (
+CREATE TABLE IF NOT EXISTS "StudyGeneratedItem" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   "itemType" TEXT NOT NULL,
@@ -105,9 +105,9 @@ CREATE TABLE IF NOT EXISTS "GeneratedStudyItem" (
   "imageSvg" TEXT,
   "model" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "GeneratedStudyItem_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "GeneratedStudyItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT "StudyGeneratedItem_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "StudyGeneratedItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS "GeneratedStudyItem_userId_createdAt_idx" ON "GeneratedStudyItem"("userId", "createdAt");
-CREATE INDEX IF NOT EXISTS "GeneratedStudyItem_userId_itemType_idx" ON "GeneratedStudyItem"("userId", "itemType");
+CREATE INDEX IF NOT EXISTS "StudyGeneratedItem_userId_createdAt_idx" ON "StudyGeneratedItem"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "StudyGeneratedItem_userId_itemType_idx" ON "StudyGeneratedItem"("userId", "itemType");
