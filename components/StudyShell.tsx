@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, RotateCcw, Sparkles } from "lucide-react";
 import type { StudyLesson, StudyLessonMeta } from "@/lib/content";
-import { AICoach } from "@/components/AICoach";
+import { AICoach, type AiGeneratedItem } from "@/components/AICoach";
 import { SpeakButton } from "@/components/SpeakButton";
+import { CertificateActions } from "@/components/CertificateActions";
 
 function shuffle<T>(items: T[]) {
   const result = [...items];
@@ -22,6 +23,7 @@ export function StudyShell({ lessons }: { lessons: StudyLessonMeta[] }) {
   const [cardIndex, setCardIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [mastered, setMastered] = useState<Record<string, boolean>>({});
+  const [categoryStats, setCategoryStats] = useState<{ accuracy: number } | null>(null);
 
   useEffect(() => {
     const slug = new URLSearchParams(window.location.search).get("lesson");
@@ -37,6 +39,7 @@ export function StudyShell({ lessons }: { lessons: StudyLessonMeta[] }) {
     setLesson(null);
     setCardIndex(0);
     setRevealed(false);
+    setCategoryStats(null);
     fetch(`/api/study?mode=learn&slug=${encodeURIComponent(selectedSlug)}`, { signal: controller.signal, cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<StudyLesson> : null)
       .then((payload) => {
@@ -51,14 +54,39 @@ export function StudyShell({ lessons }: { lessons: StudyLessonMeta[] }) {
   const card = cards.length > 0 ? cards[cardIndex % cards.length] : undefined;
   const completed = cards.filter((item) => mastered[item.id]).length;
 
+  useEffect(() => {
+    if (!selectedSlug || cards.length === 0 || completed < cards.length) return;
+    const timer = window.setTimeout(() => {
+      fetch(`/api/stats?lessonSlug=${encodeURIComponent(selectedSlug)}`, { cache: "no-store" })
+        .then((response) => response.ok ? response.json() as Promise<{ lesson?: { accuracy: number } }> : null)
+        .then((payload) => setCategoryStats(payload?.lesson ? { accuracy: payload.lesson.accuracy } : { accuracy: 100 }))
+        .catch(() => setCategoryStats({ accuracy: 100 }));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [selectedSlug, cards.length, completed]);
+
   const move = (remembered: boolean) => {
     if (!lesson || cards.length === 0 || !card) return;
     const next = { ...mastered, [card.id]: remembered };
     setMastered(next);
     window.localStorage.setItem("msc-mastered", JSON.stringify(next));
-    fetch("/api/progress", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cardId: card.id, remembered }) }).catch(() => undefined);
+    fetch("/api/progress", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cardId: card.generatedItemId ? undefined : card.id, generatedItemId: card.generatedItemId, remembered }) }).catch(() => undefined);
     setRevealed(false);
     setCardIndex((index) => (index + 1) % cards.length);
+  };
+
+  const appendGenerated = (items: AiGeneratedItem[]) => {
+    const generatedCards = items.filter((item) => item.kind === "recall").map((item) => ({
+      id: item.id,
+      generatedItemId: item.generatedItemId,
+      prompt: item.prompt,
+      answer: item.answer ?? "ยังไม่มีคำตอบ",
+      explanation: item.explanation,
+      source: item.source,
+      difficulty: "medium" as const,
+    }));
+    if (!generatedCards.length) return;
+    setLesson((current) => current ? { ...current, cards: [...current.cards, ...generatedCards] } : current);
   };
 
   return <div className="study-grid">
@@ -73,13 +101,14 @@ export function StudyShell({ lessons }: { lessons: StudyLessonMeta[] }) {
       {loading ? <div className="loading-card panel"><Sparkles size={20} className="spin" /><strong>กำลังโหลดการ์ดของหมวดนี้...</strong><span>โหลดเฉพาะเนื้อหาที่เลือกเพื่อให้แอปเปิดเร็วขึ้น</span></div> : !lesson || cards.length === 0 || !card ? <div className="loading-card panel"><strong>ไม่พบการ์ดของหมวดนี้</strong><span>ลองเลือกหมวดอื่นหรือโหลดหน้าเว็บใหม่</span></div> : <>
         <div className="section-heading"><div><p className="eyebrow"><Sparkles size={14} /> ACTIVE RECALL · คำถามก่อนเฉลย</p><h1>{lesson.title}</h1><p className="muted">{lesson.summary}</p></div><div className="progress-badge">{completed}/{cards.length} จำได้แล้ว</div></div>
         <div className="progress-track"><span style={{ width: `${(completed / cards.length) * 100}%` }} /></div>
+        {completed === cards.length && <CertificateActions title={lesson.title} completed={completed} total={cards.length} accuracy={categoryStats?.accuracy ?? 100} />}
         <div className={revealed ? "recall-card revealed" : "recall-card"}>
           <div className="card-topline"><span>การ์ด {cardIndex + 1} / {cards.length}</span><span className={`difficulty ${card.difficulty}`}>{card.difficulty === "easy" ? "เริ่มต้น" : card.difficulty === "medium" ? "กำลังฝึก" : "ท้าทาย"}</span></div>
-          {!revealed ? <div className="card-body card-front"><p className="card-kicker">คำถาม</p><div className="card-question-row"><h2>{card.prompt}</h2><SpeakButton text={card.prompt} /></div><p className="recall-instruction">ลองตอบจากความจำก่อนเปิดเฉลย เพื่อฝึกการนึกย้อนกลับ</p><button className="primary-button reveal-button" onClick={() => setRevealed(true)}>เปิดเฉลย</button></div> : <div className="card-body card-back"><div className="card-question-row"><p className="card-kicker">เฉลย</p><SpeakButton text={`${card.prompt}. ${card.answer}. ${card.explanation}`} /></div><div className="answer-box"><strong className="card-answer">{card.answer}</strong><p>{card.explanation}</p><small>ที่มา: {card.source}{card.page == null ? "" : ` · หน้า ${card.page}`}</small></div></div>}
+          {!revealed ? <div className="card-body card-front"><p className="card-kicker">คำถาม</p><div className="card-question-row"><h2>{card.prompt}</h2><SpeakButton text={card.prompt} /></div><p className="recall-instruction">ลองตอบจากความจำก่อนเปิดเฉลย เพื่อฝึกการนึกย้อนกลับ</p><button className="primary-button reveal-button" onClick={() => setRevealed(true)}>เปิดเฉลย</button></div> : <div className="card-body card-back"><div className="card-question-row"><p className="card-kicker">เฉลย</p><SpeakButton text={`${card.prompt}. ${card.answer}. ${card.explanation}`} /></div><div className="answer-box"><strong className="card-answer">{card.answer}</strong><p>{card.explanation}</p><small>ที่มา: {card.source}{card.page == null ? "" : ` · หน้า ${card.page}`}</small></div><button className="secondary-button flip-button" onClick={() => setRevealed(false)}>กลับไปดูคำถาม</button></div>}
           <div className="card-actions"><button className="secondary-button" onClick={() => move(false)} disabled={!revealed}><RotateCcw size={17} /> ต้องทบทวนอีกครั้ง</button><button className="primary-button" onClick={() => move(true)} disabled={!revealed}><Check size={17} /> จำได้แล้ว</button></div>
         </div>
         <div className="study-tip"><span className="tip-icon">💡</span><p><strong>เทคนิคจำ:</strong> อ่านคำถาม ตอบในใจก่อน แล้วกดเปิดเฉลย การพยายามนึกเองจะช่วยให้จำได้นานกว่าการอ่านซ้ำ</p></div>
-        <AICoach key={card.id} topic={lesson.slug} summary={lesson.summary} item={{ id: card.id, kind: "recall", prompt: card.prompt, answer: card.answer, explanation: card.explanation, source: card.source }} />
+        <AICoach key={card.id} topic={lesson.slug} summary={lesson.summary} item={{ id: card.id, kind: "recall", prompt: card.prompt, answer: card.answer, explanation: card.explanation, source: card.source }} onGenerated={appendGenerated} />
         <div className="pager"><button className="icon-button" onClick={() => { setCardIndex((index) => (index - 1 + cards.length) % cards.length); setRevealed(false); }}><ChevronLeft size={18} /></button><span>เลื่อนการ์ด</span><button className="icon-button" onClick={() => { setCardIndex((index) => (index + 1) % cards.length); setRevealed(false); }}><ChevronRight size={18} /></button></div>
       </>}
     </section>
