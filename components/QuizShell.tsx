@@ -49,7 +49,7 @@ export function QuizShell({ lessons }: { lessons: StudyLessonMeta[] }) {
     setChoice(null);
     setScore(0);
     setFinished(false);
-    fetch(`/api/study?mode=quiz&slug=${encodeURIComponent(selectedSlug)}`, { signal: controller.signal })
+    fetch(`/api/study?mode=quiz&slug=${encodeURIComponent(selectedSlug)}`, { signal: controller.signal, cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<StudyLesson> : null)
       .then((payload) => {
         if (payload) setLesson({ ...payload, questions: randomizeQuestions(payload.questions) });

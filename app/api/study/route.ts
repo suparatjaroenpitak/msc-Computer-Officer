@@ -26,7 +26,9 @@ export async function GET(request: Request) {
     const payload = mode === "quiz"
       ? { ...lesson, cards: [], notes: [] }
       : { ...lesson, questions: [], notes: [] };
-    return NextResponse.json(payload, { headers: { "Cache-Control": "public, max-age=3600" } });
+    // Study data belongs to the signed-in learner and must not remain stale
+    // after new cards/questions are deployed.
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return NextResponse.json({ error: "lesson data unavailable" }, { status: 500 });
   }

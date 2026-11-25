@@ -37,7 +37,7 @@ export function StudyShell({ lessons }: { lessons: StudyLessonMeta[] }) {
     setLesson(null);
     setCardIndex(0);
     setRevealed(false);
-    fetch(`/api/study?mode=learn&slug=${encodeURIComponent(selectedSlug)}`, { signal: controller.signal })
+    fetch(`/api/study?mode=learn&slug=${encodeURIComponent(selectedSlug)}`, { signal: controller.signal, cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<StudyLesson> : null)
       .then((payload) => {
         if (payload) setLesson({ ...payload, cards: shuffle(payload.cards) });

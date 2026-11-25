@@ -23,6 +23,22 @@ Google OAuth callback URL: `http://localhost:3000/api/auth/callback/google`
 
 `npm run db:seed` จะเก็บบทเรียน/ข้อสอบที่ผ่านการกลั่นและบทสรุป AI-friendly ลง PostgreSQL พร้อมใช้รหัสการ์ดเดียวกับหน้าเว็บ เพื่อให้ความคืบหน้าของผู้ใช้บันทึกได้ถูกต้อง
 
+## ตั้งค่า Groq AI แบบทีละขั้น
+
+1. สมัครหรือเข้าสู่ระบบที่ [console.groq.com](https://console.groq.com/)
+2. เปิดเมนู API Keys แล้วสร้างคีย์ใหม่ จากนั้นคัดลอกไว้ทันที
+3. เปิดไฟล์ `.env.local` แล้วเพิ่มค่าต่อไปนี้ โดยใส่คีย์ของคุณเอง ห้ามใส่คีย์จริงใน Git หรือแชท:
+
+```env
+GROQ_API_KEY="วางคีย์ Groq ของคุณตรงนี้"
+GROQ_MODEL="llama-3.3-70b-versatile"
+```
+
+4. ปิดแล้วเปิด `npm run dev` ใหม่ จากนั้นเข้าสู่ระบบ Google และกดปุ่ม AI Coach ในหน้าเรียน
+5. ถ้าใช้ Vercel ให้ไปที่ Project Settings → Environment Variables เพิ่ม `GROQ_API_KEY` และ `GROQ_MODEL` ในช่อง Production แล้วกด Redeploy
+
+ถ้าเห็นข้อความ `ยังไม่ได้ตั้งค่า GROQ_API_KEY` แปลว่ายังไม่ได้เพิ่มคีย์ใน environment ที่กำลังใช้งาน ส่วนข้อมูล Recall และข้อสอบจะโหลดครบทั้งหมวด ไม่ตัดเหลือ 30 รายการ
+
 ## นำเข้าเนื้อหาจาก PDF ใหม่
 
 ข้อมูลจาก PDF ที่ใช้ในแอปอยู่ใน `content/pdf-corpus.json` ครบ 3 ไฟล์ รวม 673 หน้า
