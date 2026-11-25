@@ -21,7 +21,7 @@ function cleanAiText(value: string) {
     .replace(/^\s*#{1,6}\s*/gm, "")
     .replace(/^\s*[-*+•]\s+/gm, "")
     .replace(/[*_~`>|]/g, "")
-    .replace(/[^\p{L}\p{N}\s.,:;!?()\/+\-%]/gu, "")
+    .replace(/[^\p{L}\p{M}\p{N}\s.,:;!?()\/+\-%]/gu, "")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
