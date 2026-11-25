@@ -1,42 +1,72 @@
 import { NextResponse } from "next/server";
-import { searchCuratedStudyBank } from "@/lib/curated-context";
 import { getRequiredApiSession } from "@/lib/require-auth";
+
+type AiItem = {
+  kind: "recall" | "quiz";
+  prompt: string;
+  answer?: string;
+  explanation?: string;
+  options?: string[];
+  source?: string;
+};
 
 export async function POST(request: Request) {
   const session = await getRequiredApiSession();
   if (!session?.user?.id) return NextResponse.json({ error: "ต้องเข้าสู่ระบบด้วย Google ก่อนใช้งาน" }, { status: 401 });
+
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ยังไม่ได้ตั้งค่า GROQ_API_KEY" }, { status: 503 });
 
-  const body = await request.json() as { topic?: string; summary?: string; mode?: "explain" | "memory" | "quiz" };
-  if (!body.topic) return NextResponse.json({ error: "topic is required" }, { status: 400 });
+  const body = await request.json() as {
+    topic?: string;
+    summary?: string;
+    mode?: "explain" | "memory" | "quiz";
+    item?: AiItem;
+  };
+  if (!body.topic || !body.item?.prompt) {
+    return NextResponse.json({ error: "ต้องส่งข้อมูลการ์ดหรือข้อสอบที่กำลังเปิดอยู่" }, { status: 400 });
+  }
 
+  const item = body.item;
   const mode = body.mode ?? "explain";
-  const curatedHits = searchCuratedStudyBank(`${body.topic} ${body.summary ?? ""}`, 8);
-  const curatedContext = curatedHits.length
-    ? curatedHits.map((hit) => {
-        const options = hit.options?.length ? ` ตัวเลือก: ${hit.options.join(" | ")}` : "";
-        const page = hit.page == null ? "" : ` หน้า ${hit.page}`;
-        const kind = hit.kind === "note" ? "เนื้อหาอ่าน" : hit.kind === "recall" ? "Active Recall" : "ข้อสอบ";
-        return `[หมวด ${hit.lessonTitle} · ${kind}${page}] คำถาม/หัวข้อ: ${hit.prompt}${options} คำตอบ/เนื้อหา: ${hit.answer} เหตุผล: ${hit.explanation} ที่มา: ${hit.source}`;
-      }).join("\n")
-    : "ไม่พบเนื้อหากลั่นแล้วที่ตรงกับหัวข้อนี้ ให้บอกผู้เรียนอย่างชัดเจนว่าเป็นคำอธิบายเสริมจาก AI";
   const instruction = mode === "memory"
-    ? "อธิบายด้วยเทคนิคจำง่าย เปรียบเทียบกับชีวิตประจำวัน และสร้างคำถาม recall 3 ข้อ"
+    ? "ช่วยคิดวิธีจำเฉพาะข้อนี้ เปรียบเทียบกับชีวิตประจำวัน และให้คำถามทบทวนสั้น ๆ 2 ข้อ"
     : mode === "quiz"
-      ? "สร้างข้อสอบปรนัย 3 ข้อ พร้อมตัวเลือก เฉลย และเหตุผล โดยใช้ภาษาไทยง่าย ๆ"
-      : "อธิบายให้เด็กนักเรียนเข้าใจง่าย ใช้ตัวอย่างใกล้ตัว และสรุปท้ายคำตอบ 3 บรรทัด";
+      ? "ถามต่อยอดจากข้อนี้ 2 ข้อ โดยห้ามออกนอกแนวคิดของข้อที่เปิดอยู่ พร้อมเฉลยสั้น ๆ"
+      : "อธิบายเฉพาะข้อนี้ให้เข้าใจง่าย พร้อมชี้คำตอบและเหตุผลตามข้อมูลที่ให้";
+  const currentItem = [
+    "[ข้อมูลของข้อที่กำลังเปิดอยู่เท่านั้น]",
+    "ประเภท: " + (item.kind === "recall" ? "Active Recall" : "ข้อสอบ"),
+    "คำถาม: " + item.prompt,
+    item.options?.length ? "ตัวเลือก: " + item.options.join(" | ") : "",
+    item.answer ? "คำตอบจากเอกสาร: " + item.answer : "",
+    item.explanation ? "เหตุผลจากเอกสาร: " + item.explanation : "",
+    item.source ? "ที่มา: " + item.source : "",
+  ].filter(Boolean).join("\n");
+  const systemPrompt = [
+    "คุณเป็นติวเตอร์นักวิชาการคอมพิวเตอร์สำหรับนักเรียนไทย",
+    "ตอบเฉพาะข้อมูลของข้อที่กำลังเปิดอยู่ ห้ามดึงหรือผสมข้อมูลจากหัวข้ออื่น",
+    "ถ้าข้อมูลไม่พอ ให้บอกตรง ๆ ว่ายังไม่มีข้อมูลในข้อนี้ ห้ามแต่งมาตรา ตัวเลข หรือคำตอบใหม่",
+    "จัดคำตอบให้อ่านง่ายด้วยหัวข้อสั้น ๆ และรายการย่อย ไม่เขียนเป็นย่อหน้ายาว",
+    "ใช้รูปแบบ: คำตอบสั้น / อธิบายง่าย / วิธีจำ / จุดที่มักสับสน",
+  ].join("\n");
+  const userPrompt = [
+    "หมวด: " + body.topic,
+    "สรุปหมวด: " + (body.summary ?? ""),
+    "งานที่ต้องทำ: " + instruction,
+    currentItem,
+  ].join("\n\n");
   const model = process.env.GROQ_MODEL ?? "openai/gpt-oss-20b";
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
     body: JSON.stringify({
       model,
-      temperature: 0.35,
+      temperature: 0.25,
       messages: [
-        { role: "system", content: "คุณเป็นติวเตอร์นักวิชาการคอมพิวเตอร์ อธิบายอย่างถูกต้อง ชัดเจน และใช้เฉพาะข้อมูลอ้างอิงจากชุดการ์ดหรือข้อสอบใหม่ที่อยู่ในบริบท ห้ามแต่งมาตรา ตัวเลข หรือเนื้อหาที่ไม่มีแหล่งอ้างอิง" },
-        { role: "user", content: `หัวข้อ: ${body.topic}\nบริบทจากบทเรียน: ${body.summary ?? ""}\nบริบทจากชุดข้อมูลใหม่:\n${curatedContext}\nงาน: ${instruction}\nให้ติดป้าย [จากชุดข้อมูลใหม่] และ [AI เสริม] แยกกัน และอย่าสร้างมาตรา/ตัวเลขกฎหมายขึ้นเอง` },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
     }),
   });
@@ -55,6 +85,12 @@ export async function POST(request: Request) {
         : "Groq ตอบกลับด้วยสถานะ " + response.status;
     return NextResponse.json({ error, model }, { status: 502 });
   }
+
   const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return NextResponse.json({ content: data.choices?.[0]?.message?.content ?? "ไม่มีคำตอบจาก AI", model, sources: curatedHits.map((hit) => ({ source: hit.source, page: hit.page, lesson: hit.lessonTitle })) });
+  return NextResponse.json({
+    content: data.choices?.[0]?.message?.content ?? "ไม่มีคำตอบจาก AI",
+    model,
+    sources: item.source ? [{ source: item.source }] : [],
+  });
 }
+

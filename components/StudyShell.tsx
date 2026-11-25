@@ -79,7 +79,7 @@ export function StudyShell({ lessons }: { lessons: StudyLessonMeta[] }) {
           <div className="card-actions"><button className="secondary-button" onClick={() => move(false)} disabled={!revealed}><RotateCcw size={17} /> ต้องทบทวนอีกครั้ง</button><button className="primary-button" onClick={() => move(true)} disabled={!revealed}><Check size={17} /> จำได้แล้ว</button></div>
         </div>
         <div className="study-tip"><span className="tip-icon">💡</span><p><strong>เทคนิคจำ:</strong> อ่านคำถาม ตอบในใจก่อน แล้วกดเปิดเฉลย การพยายามนึกเองจะช่วยให้จำได้นานกว่าการอ่านซ้ำ</p></div>
-        <AICoach topic={lesson.title} summary={lesson.summary} />
+        <AICoach key={card.id} topic={lesson.title} summary={lesson.summary} item={{ kind: "recall", prompt: card.prompt, answer: card.answer, explanation: card.explanation, source: card.source }} />
         <div className="pager"><button className="icon-button" onClick={() => { setCardIndex((index) => (index - 1 + cards.length) % cards.length); setRevealed(false); }}><ChevronLeft size={18} /></button><span>เลื่อนการ์ด</span><button className="icon-button" onClick={() => { setCardIndex((index) => (index + 1) % cards.length); setRevealed(false); }}><ChevronRight size={18} /></button></div>
       </>}
     </section>
