@@ -434,8 +434,9 @@ def parse_structured_source(path: Path) -> tuple[list[dict], list[dict]]:
 
     flush_question()
     flush_recall()
-    expected_recalls = 4000 if path.stem == "set-17" else 500
-    expected_quizzes = 8000 if path.stem == "set-17" else 1000
+    is_large_law_source = path.stem in {"set-17", "PART_06_Thai_Laws_12000_TH"}
+    expected_recalls = 4000 if is_large_law_source else 500
+    expected_quizzes = 8000 if is_large_law_source else 1000
     if len(recalls) != expected_recalls:
         raise ValueError(f"{path.name} ต้องมี Recall {expected_recalls} ข้อ แต่พบ {len(recalls)} ข้อ")
     if len(quizzes) != expected_quizzes:
