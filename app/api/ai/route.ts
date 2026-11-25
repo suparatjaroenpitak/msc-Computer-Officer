@@ -42,6 +42,39 @@ function cleanAiText(value: string) {
     .trim();
 }
 
+function comparableAnswer(value: string) {
+  return cleanAiText(value).toLocaleLowerCase("th-TH").replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function resolveAnswerIndex(value: Record<string, unknown>, options: string[] | undefined, item: AiItem) {
+  const directIndex = typeof value.answerIndex === "number"
+    ? value.answerIndex
+    : typeof value.correctIndex === "number"
+      ? value.correctIndex
+      : null;
+  if (directIndex !== null && options?.length === 4) return Math.max(0, Math.min(3, Math.trunc(directIndex)));
+  if (!options?.length) return null;
+  const answerTexts = [value.answer, value.correctAnswer, item.answer].filter((answer): answer is string => typeof answer === "string").map(comparableAnswer).filter(Boolean);
+  for (const answer of answerTexts) {
+    const matchedIndex = options.findIndex((option) => {
+      const comparableOption = comparableAnswer(option);
+      return comparableOption === answer || comparableOption.includes(answer) || answer.includes(comparableOption);
+    });
+    if (matchedIndex >= 0) return matchedIndex;
+  }
+  return null;
+}
+
+function uniqueDrafts(drafts: GeneratedDraft[]) {
+  const seen = new Set<string>();
+  return drafts.filter((draft) => {
+    const key = comparableAnswer(draft.prompt);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function parseGeneratedDrafts(raw: string, mode: "generate-recall" | "generate-quiz", item: AiItem): GeneratedDraft[] {
   const normalized = raw.replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/i, "").trim();
   let parsed: unknown;
@@ -61,21 +94,27 @@ function parseGeneratedDrafts(raw: string, mode: "generate-recall" | "generate-q
     const prompt = typeof value.prompt === "string" ? cleanAiText(value.prompt) : "";
     if (!prompt) return [];
     const options = Array.isArray(value.options) ? value.options.filter((option): option is string => typeof option === "string").map(cleanAiText) : undefined;
-    const answerIndex = typeof value.answerIndex === "number" ? Math.max(0, Math.min(3, Math.trunc(value.answerIndex))) : null;
+    const answer = typeof value.answer === "string"
+      ? cleanAiText(value.answer)
+      : typeof value.correctAnswer === "string"
+        ? cleanAiText(value.correctAnswer)
+        : undefined;
+    const answerIndex = mode === "generate-quiz" ? resolveAnswerIndex(value, options?.length === 4 ? options : undefined, item) : null;
     return [{
       prompt,
-      answer: typeof value.answer === "string" ? cleanAiText(value.answer) : undefined,
+      answer,
       options: options?.length === 4 ? options : undefined,
       answerIndex,
       explanation: typeof value.explanation === "string" ? cleanAiText(value.explanation) : undefined,
     }];
   });
-  if (drafts.length > 0) return drafts.slice(0, 5);
+  const unique = uniqueDrafts(drafts);
+  if (unique.length > 0) return unique.slice(0, 5);
   return [{
     prompt: item.prompt,
-    answer: mode === "generate-recall" ? item.answer ?? cleanAiText(raw) : undefined,
+    answer: item.answer ?? cleanAiText(raw),
     options: mode === "generate-quiz" ? item.options : undefined,
-    answerIndex: mode === "generate-quiz" ? (item.options?.length ? 0 : null) : undefined,
+    answerIndex: mode === "generate-quiz" ? resolveAnswerIndex({ answer: item.answer }, item.options, item) : undefined,
     explanation: item.explanation,
   }];
 }
@@ -87,7 +126,7 @@ function formatGeneratedDrafts(drafts: GeneratedDraft[], mode: "generate-recall"
       lines.push("คำตอบ: " + (draft.answer ?? "ยังไม่มีคำตอบ"));
     } else {
       draft.options?.forEach((option, optionIndex) => lines.push(String.fromCharCode(65 + optionIndex) + ". " + option));
-      lines.push("เฉลย: " + (draft.answerIndex == null ? "ยังไม่มีเฉลย" : String.fromCharCode(65 + draft.answerIndex)));
+      lines.push("เฉลย: " + (draft.answerIndex == null ? (draft.answer ?? "ยังไม่มีเฉลย") : String.fromCharCode(65 + draft.answerIndex) + (draft.answer ? " · " + draft.answer : "")));
     }
     if (draft.explanation) lines.push("อธิบาย: " + draft.explanation);
     return lines.join("\n");
@@ -177,7 +216,7 @@ export async function POST(request: Request) {
       : mode === "generate-recall"
         ? "สร้างการ์ด Active Recall ใหม่ 3 ใบจากเนื้อหาของข้อที่เปิดอยู่เท่านั้น ให้คำถามสั้น กระชับ และคำตอบตรงกับเอกสาร"
         : mode === "generate-quiz"
-          ? "สร้างข้อสอบปรนัย 4 ตัวเลือกใหม่ 3 ข้อจากเนื้อหาของข้อที่เปิดอยู่เท่านั้น ห้ามออกนอกเนื้อหา"
+          ? "สร้างข้อสอบปรนัย 4 ตัวเลือกใหม่ 3 ข้อจากเนื้อหาของข้อที่เปิดอยู่เท่านั้น ห้ามออกนอกเนื้อหา แต่ละข้อห้ามถามซ้ำกัน ให้เปลี่ยนมุมเป็นนิยาม คุณสมบัติ ตัวอย่าง หรือการเปรียบเทียบ และทุกข้อต้องมี answer เป็นข้อความตัวเลือกที่ถูกต้องพร้อม answerIndex เป็นเลข 0 ถึง 3"
           : mode === "image"
             ? "สรุปคำตอบของข้อนี้เป็นข้อความสั้น 5 ถึง 8 บรรทัด เพื่อทำภาพสรุป"
             : "อธิบายเฉพาะข้อนี้ให้เข้าใจง่าย พร้อมชี้คำตอบและเหตุผลตามข้อมูลที่ให้";
@@ -198,7 +237,7 @@ export async function POST(request: Request) {
     "ห้ามใช้ตาราง Markdown โค้ดบล็อก หรือการเขียนตัวเลขติดกันจนอ่านเป็นอีกตัวเลขหนึ่ง",
     "ถ้ามีการคำนวณ ให้แยกเป็นบรรทัด สูตร / แทนค่า / คำตอบ และเขียนเลขยกกำลังเป็นคำว่า ยกกำลัง เช่น 2 ยกกำลัง 8",
     "ให้เว้นบรรทัดระหว่างหัวข้อและคำอธิบายทุกหัวข้อ ใช้ไม่เกิน 2 ประโยคต่อย่อหน้า",
-    generateMode ? "ตอบเป็น JSON เท่านั้นในรูปแบบ {\"items\":[{\"prompt\":\"...\",\"answer\":\"...\",\"explanation\":\"...\",\"options\":[\"...\",\"...\",\"...\",\"...\"],\"answerIndex\":0}]} โดย generate-recall ไม่ต้องใส่ options และ generate-quiz ต้องใส่ options 4 ตัวเลือก" : "",
+    generateMode ? "ตอบเป็น JSON เท่านั้นในรูปแบบ {\"items\":[{\"prompt\":\"...\",\"answer\":\"ข้อความตัวเลือกที่ถูกต้อง\",\"explanation\":\"...\",\"options\":[\"...\",\"...\",\"...\",\"...\"],\"answerIndex\":0}]} โดย generate-recall ไม่ต้องใส่ options และ generate-quiz ต้องใส่ options 4 ตัวเลือก ห้ามใช้ prompt ซ้ำกัน" : "",
     "สำหรับงานอธิบายทั่วไป ใช้หัวข้อสั้น ๆ: คำตอบสั้น / อธิบายง่าย / วิธีจำ / จุดที่มักสับสน",
   ].filter(Boolean).join("\n");
   const userPrompt = ["หมวด: " + body.topic, "สรุปหมวด: " + (body.summary ?? ""), "งานที่ต้องทำ: " + instruction, currentItem].join("\n\n");
