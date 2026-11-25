@@ -26,12 +26,13 @@ export async function POST(request: Request) {
     : mode === "quiz"
       ? "สร้างข้อสอบปรนัย 3 ข้อ พร้อมตัวเลือก เฉลย และเหตุผล โดยใช้ภาษาไทยง่าย ๆ"
       : "อธิบายให้เด็กนักเรียนเข้าใจง่าย ใช้ตัวอย่างใกล้ตัว และสรุปท้ายคำตอบ 3 บรรทัด";
+  const model = process.env.GROQ_MODEL ?? "openai/gpt-oss-20b";
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+      model,
       temperature: 0.35,
       messages: [
         { role: "system", content: "คุณเป็นติวเตอร์นักวิชาการคอมพิวเตอร์ อธิบายอย่างถูกต้อง ชัดเจน และใช้เฉพาะข้อมูลอ้างอิงจากชุดการ์ดหรือข้อสอบใหม่ที่อยู่ในบริบท ห้ามแต่งมาตรา ตัวเลข หรือเนื้อหาที่ไม่มีแหล่งอ้างอิง" },
@@ -40,7 +41,20 @@ export async function POST(request: Request) {
     }),
   });
 
-  if (!response.ok) return NextResponse.json({ error: "Groq ตอบกลับไม่สำเร็จ" }, { status: 502 });
+  if (!response.ok) {
+    const providerError = await response.text();
+    console.error("Groq API request failed", {
+      status: response.status,
+      model,
+      providerError: providerError.slice(0, 1000),
+    });
+    const error = response.status === 401
+      ? "GROQ_API_KEY ไม่ถูกต้องหรือหมดอายุ"
+      : response.status === 404
+        ? "ไม่พบโมเดล Groq: " + model
+        : "Groq ตอบกลับด้วยสถานะ " + response.status;
+    return NextResponse.json({ error, model }, { status: 502 });
+  }
   const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return NextResponse.json({ content: data.choices?.[0]?.message?.content ?? "ไม่มีคำตอบจาก AI", model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile", sources: curatedHits.map((hit) => ({ source: hit.source, page: hit.page, lesson: hit.lessonTitle })) });
+  return NextResponse.json({ content: data.choices?.[0]?.message?.content ?? "ไม่มีคำตอบจาก AI", model, sources: curatedHits.map((hit) => ({ source: hit.source, page: hit.page, lesson: hit.lessonTitle })) });
 }
