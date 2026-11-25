@@ -5,7 +5,7 @@ import type { StudyLesson } from "@/lib/content";
 import { getRequiredApiSession } from "@/lib/require-auth";
 import { prisma } from "@/lib/prisma";
 
-async function loadLesson(slug: string) {
+async function loadLesson(slug: string, userId: string) {
   if (!slug.startsWith("user-") || !/^[a-z0-9-]+$/.test(slug)) return undefined;
 
   // PostgreSQL is the source of truth in production. The file fallback keeps
@@ -20,27 +20,54 @@ async function loadLesson(slug: string) {
       },
     });
     if (dbLesson) {
+      const generatedItems = await prisma.generatedStudyItem.findMany({
+        where: { userId, lessonSlug: slug, itemType: { in: ["recall", "quiz"] } },
+        orderBy: { createdAt: "asc" },
+      });
+      const generatedCards = generatedItems
+        .filter((item) => item.itemType === "recall")
+        .map((item) => ({
+          id: `ai-${item.id}`,
+          generatedItemId: item.id,
+          prompt: item.prompt,
+          answer: item.answer ?? "ยังไม่มีคำตอบ",
+          explanation: item.explanation ?? "คำตอบที่สร้างโดย AI จากเนื้อหาการ์ดนี้",
+          source: item.source ?? "AI Coach",
+          difficulty: "medium" as const,
+        }));
+      const generatedQuestions = generatedItems
+        .filter((item) => item.itemType === "quiz")
+        .map((item) => ({
+          id: `ai-${item.id}`,
+          generatedItemId: item.id,
+          prompt: item.prompt,
+          options: Array.isArray(item.options) ? item.options.filter((option): option is string => typeof option === "string") : [],
+          answerIndex: item.answerIndex,
+          explanation: item.explanation ?? "เฉลยที่สร้างโดย AI จากเนื้อหาข้อสอบนี้",
+          source: item.source ?? "AI Coach",
+        }))
+        .filter((item) => item.options.length === 4);
       return {
         slug: dbLesson.slug,
         title: dbLesson.title,
         summary: dbLesson.summary,
         accent: "blue",
-        cards: dbLesson.cards.map((card) => ({
+        cards: [...dbLesson.cards.map((card) => ({
           id: card.id,
           prompt: card.prompt,
           answer: card.answer,
           explanation: card.explanation,
           source: card.source,
           difficulty: card.difficulty as StudyLesson["cards"][number]["difficulty"],
-        })),
-        questions: dbLesson.questions.map((question) => ({
+        })), ...generatedCards],
+        questions: [...dbLesson.questions.map((question) => ({
           id: question.id,
           prompt: question.prompt,
           options: Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === "string") : [],
           answerIndex: question.answerIndex,
           explanation: question.explanation,
           source: question.source,
-        })),
+        })), ...generatedQuestions],
         notes: [],
       } satisfies StudyLesson;
     }
@@ -59,7 +86,7 @@ export async function GET(request: Request) {
   const slug = url.searchParams.get("slug") ?? "";
   const mode = url.searchParams.get("mode") === "quiz" ? "quiz" : "learn";
   try {
-    const lesson = await loadLesson(slug);
+    const lesson = await loadLesson(slug, session.user.id);
     if (!lesson) return NextResponse.json({ error: "lesson not found" }, { status: 404 });
 
     // Keep the client payload focused: Learn needs cards; Quiz needs questions.

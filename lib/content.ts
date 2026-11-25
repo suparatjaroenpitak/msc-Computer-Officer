@@ -7,6 +7,7 @@ export type StudyCard = {
   difficulty: "easy" | "medium" | "hard";
   sourceId?: string;
   page?: number;
+  generatedItemId?: string;
 };
 
 export type StudyQuestion = {
@@ -18,6 +19,7 @@ export type StudyQuestion = {
   source: string;
   sourceId?: string;
   page?: number;
+  generatedItemId?: string;
 };
 
 export type StudyNote = {

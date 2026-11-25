@@ -96,15 +96,18 @@ model Card {
 model CardProgress {
   id             String   @id @default(cuid())
   userId         String
-  cardId         String
+  cardId         String?
+  generatedItemId String?
   box            Int      @default(0)
   correctCount   Int      @default(0)
   wrongCount     Int      @default(0)
   nextReviewAt   DateTime @default(now())
   lastReviewedAt DateTime?
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card           Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  card           Card?    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  generatedItem  GeneratedStudyItem? @relation(fields: [generatedItemId], references: [id], onDelete: Cascade)
   @@unique([userId, cardId])
+  @@unique([userId, generatedItemId])
   @@index([userId, nextReviewAt])
   @@map("StudyCardProgress")
 }
@@ -152,6 +155,7 @@ model GeneratedStudyItem {
   model        String
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progress     CardProgress[]
 
   @@index([userId, createdAt])
   @@index([userId, itemType])

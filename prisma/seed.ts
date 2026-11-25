@@ -8,6 +8,41 @@ function dbItemId(lessonSlug: string, kind: "card" | "question", index: number) 
   return `${lessonSlug}--${kind}-${String(index).padStart(5, "0")}`;
 }
 
+const LEGAL_REPLACEMENT_LESSONS = ["user-digital-law", "user-recall-all", "user-exam-bank"];
+
+async function needsLegalReplacement(courseId: string, lessons: StudyLesson[]) {
+  for (const slug of LEGAL_REPLACEMENT_LESSONS) {
+    const expected = lessons.find((lesson) => lesson.slug === slug);
+    const dbLesson = await prisma.lesson.findUnique({
+      where: { courseId_slug: { courseId, slug } },
+      select: { id: true },
+    });
+    if (!expected || !dbLesson) continue;
+    const [cardCount, questionCount] = await Promise.all([
+      prisma.card.count({ where: { lessonId: dbLesson.id } }),
+      prisma.question.count({ where: { lessonId: dbLesson.id } }),
+    ]);
+    if (cardCount !== expected.cards.length || questionCount !== expected.questions.length) return true;
+  }
+  return false;
+}
+
+async function replaceLegalLessons(courseId: string) {
+  const dbLessons = await prisma.lesson.findMany({
+    where: { courseId, slug: { in: LEGAL_REPLACEMENT_LESSONS } },
+    select: { id: true, slug: true },
+  });
+  const lessonIds = dbLessons.map((lesson) => lesson.id);
+  if (!lessonIds.length) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cardProgress.deleteMany({ where: { card: { lessonId: { in: lessonIds } } } });
+    await tx.card.deleteMany({ where: { lessonId: { in: lessonIds } } });
+    await tx.question.deleteMany({ where: { lessonId: { in: lessonIds } } });
+  });
+  console.log(`Replaced legacy legal study rows in ${dbLessons.map((lesson) => lesson.slug).join(", ")}`);
+}
+
 async function main() {
   const lessons = rawStudyBank.lessons as StudyLesson[];
   const totalCards = lessons.reduce((sum, lesson) => sum + lesson.cards.length, 0);
@@ -33,6 +68,10 @@ async function main() {
     update: { title: "นักวิชาการคอมพิวเตอร์: เรียนให้เข้าใจ จำให้นาน", description: "บทเรียนและข้อสอบจากชุดข้อมูลใหม่ พร้อมระบบ Recall และทบทวนซ้ำ" },
     create: { slug: "computer-officer", title: "นักวิชาการคอมพิวเตอร์: เรียนให้เข้าใจ จำให้นาน", description: "บทเรียนและข้อสอบจากชุดข้อมูลใหม่ พร้อมระบบ Recall และทบทวนซ้ำ" },
   });
+
+  if (await needsLegalReplacement(course.id, lessons)) {
+    await replaceLegalLessons(course.id);
+  }
 
   for (const [lessonIndex, lesson] of lessons.entries()) {
     const dbLesson = await prisma.lesson.upsert({

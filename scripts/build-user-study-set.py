@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 from datetime import datetime, timezone
@@ -112,6 +113,66 @@ def source_label(path: Path) -> str:
         "set-17": "Thai Laws 12000",
     }
     return labels.get(path.stem, path.stem)
+
+
+def parse_legal_tsv_sources(recall_path: Path, quiz_path: Path) -> tuple[list[dict], list[dict]]:
+    """Read the replacement legal bank supplied as two tab-separated files."""
+    legal_topic = topic_for(331)
+
+    with recall_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        recall_rows = list(csv.DictReader(handle, delimiter="\t"))
+    if len(recall_rows) != 8000:
+        raise ValueError(f"{recall_path.name} ต้องมี Recall 8000 ข้อ แต่พบ {len(recall_rows)} ข้อ")
+
+    recalls: list[dict] = []
+    for index, row in enumerate(recall_rows, start=1):
+        prompt = (row.get("คำถาม") or "").strip()
+        answer = (row.get("คำตอบ") or "").strip()
+        if not prompt or not answer:
+            raise ValueError(f"ข้อมูล Recall ไม่ครบใน {recall_path.name} แถว {index + 1}")
+        module_id = (row.get("Module ID") or f"LEGAL-{index:04d}").strip()
+        category = (row.get("หมวด") or "").strip()
+        source = (row.get("แหล่งที่มา") or "สรุปสาระจาก PDF").strip()
+        recalls.append({
+            "number": index,
+            "prompt": prompt,
+            "answer": answer,
+            "explanation": "คำตอบสรุปจากชุดกฎหมายใหม่ ลองตอบจากความจำก่อนเปิดเฉลย",
+            "topic": legal_topic,
+            "source": f"{source} · {category}" if category else source,
+            "sourceId": f"part-06-legal-recall-{module_id}",
+            "id": f"user-part06-legal-recall-{index:04d}",
+        })
+
+    with quiz_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        quiz_rows = list(csv.DictReader(handle, delimiter="\t"))
+    if len(quiz_rows) != 8000:
+        raise ValueError(f"{quiz_path.name} ต้องมีข้อสอบ 8000 ข้อ แต่พบ {len(quiz_rows)} ข้อ")
+
+    quizzes: list[dict] = []
+    for index, row in enumerate(quiz_rows, start=1):
+        prompt = (row.get("คำถาม") or "").strip()
+        options = [(row.get(letter) or "").strip() for letter in "ABCD"]
+        answer = (row.get("เฉลย") or "").strip().upper()
+        if not prompt or any(not option for option in options) or answer not in "ABCD":
+            raise ValueError(f"ข้อมูลข้อสอบไม่ครบหรือเฉลยไม่ใช่ A-D ใน {quiz_path.name} แถว {index + 1}")
+        module_id = (row.get("Module ID") or f"LEGAL-{index:04d}").strip()
+        category = (row.get("หมวด") or "").strip()
+        source = (row.get("แหล่งที่มา") or "สรุปสาระจาก PDF").strip()
+        explanation = (row.get("คำอธิบาย") or "").strip()
+        answer_index = "ABCD".index(answer)
+        quizzes.append({
+            "number": index,
+            "prompt": prompt,
+            "options": options,
+            "answer": answer,
+            "explanation": explanation or f"เฉลย {answer}. {options[answer_index]}",
+            "topic": legal_topic,
+            "source": f"{source} · {category}" if category else source,
+            "sourceId": f"part-06-legal-quiz-{module_id}",
+            "id": f"user-part06-legal-quiz-{index:04d}",
+        })
+    return recalls, quizzes
 
 
 def make_extra_card(prompt: str, answer: str, topic: dict, source: str, card_id: str, explanation: str = "") -> dict:
@@ -624,6 +685,10 @@ def parse_source() -> tuple[list[dict], list[dict]]:
     additional_recalls: list[dict] = []
     additional_quizzes: list[dict] = []
     for path in sorted(ADDITIONAL_SOURCE_DIR.glob("set-*.txt")):
+        # set-17 is the superseded legal source. The replacement TSV bank is
+        # imported below so old legal rows never reach the generated seed.
+        if path.stem == "set-17":
+            continue
         if path.stem == "set-07":
             parser = parse_computer_fundamentals_source
         elif path.stem in {f"set-{number:02d}" for number in range(8, 18)}:
@@ -634,9 +699,19 @@ def parse_source() -> tuple[list[dict], list[dict]]:
         additional_recalls.extend(file_recalls)
         additional_quizzes.extend(file_quizzes)
 
+    replacement_recall_path = ADDITIONAL_SOURCE_DIR / "PART_06_Active_Recall_8000_Flashcards_TH.tsv"
+    replacement_quiz_path = ADDITIONAL_SOURCE_DIR / "PART_06_MCQ_8000_TH.tsv"
+    if not replacement_recall_path.exists() or not replacement_quiz_path.exists():
+        raise FileNotFoundError("ไม่พบ TSV ชุดกฎหมายใหม่ทั้งสองไฟล์ใน content/additional-sources")
+    legal_recalls, legal_quizzes = parse_legal_tsv_sources(replacement_recall_path, replacement_quiz_path)
+    additional_recalls.extend(legal_recalls)
+    additional_quizzes.extend(legal_quizzes)
+
     unique_recalls: list[dict] = []
     seen_recalls: set[str] = set()
-    for item in [*recalls, *additional_recalls]:
+    # Remove the old 331-390 legal block from the original 560-card seed.
+    base_recalls = [item for item in recalls if not 331 <= item["number"] <= 390]
+    for item in [*base_recalls, *additional_recalls]:
         key = f"{normalize_key(item['prompt'])}|{normalize_key(item['answer'])}"
         if key and key not in seen_recalls:
             seen_recalls.add(key)
@@ -644,7 +719,9 @@ def parse_source() -> tuple[list[dict], list[dict]]:
 
     unique_quizzes: list[dict] = []
     seen_quizzes: set[str] = set()
-    for item in [*quizzes, *additional_quizzes]:
+    # Remove the old legal block from the original 100-question seed.
+    base_quizzes = [item for item in quizzes if not 71 <= item["number"] <= 85]
+    for item in [*base_quizzes, *additional_quizzes]:
         key = "|".join([normalize_key(item["prompt"]), *(normalize_key(option) for option in item["options"]), item["answer"]])
         if key and key not in seen_quizzes:
             seen_quizzes.add(key)
@@ -724,7 +801,15 @@ def build() -> None:
             "notes": [],
         })
 
-    additional_sources = [path.relative_to(ROOT).as_posix() for path in sorted(ADDITIONAL_SOURCE_DIR.glob("set-*.txt"))]
+    additional_sources = [
+        path.relative_to(ROOT).as_posix()
+        for path in sorted(ADDITIONAL_SOURCE_DIR.glob("set-*.txt"))
+        if path.stem != "set-17"
+    ]
+    additional_sources.extend([
+        (ADDITIONAL_SOURCE_DIR / "PART_06_Active_Recall_8000_Flashcards_TH.tsv").relative_to(ROOT).as_posix(),
+        (ADDITIONAL_SOURCE_DIR / "PART_06_MCQ_8000_TH.tsv").relative_to(ROOT).as_posix(),
+    ])
     stats = {
         "recallCards": len(recalls),
         "examQuestions": len(quizzes),

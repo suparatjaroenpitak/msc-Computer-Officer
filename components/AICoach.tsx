@@ -15,6 +15,18 @@ export type AiItemContext = {
   source?: string;
 };
 
+export type AiGeneratedItem = {
+  id: string;
+  generatedItemId: string;
+  kind: "recall" | "quiz";
+  prompt: string;
+  answer?: string;
+  options?: string[];
+  answerIndex?: number | null;
+  explanation: string;
+  source: string;
+};
+
 function cleanAiText(value: string) {
   return value
     .replace(/```[\s\S]*?```/g, (block) => block.replace(/```[a-zA-Z]*\n?/g, ""))
@@ -85,10 +97,12 @@ export function AICoach({
   topic,
   summary,
   item,
+  onGenerated,
 }: {
   topic: string;
   summary: string;
   item: AiItemContext;
+  onGenerated?: (items: AiGeneratedItem[]) => void;
 }) {
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<AiSource[]>([]);
@@ -115,11 +129,30 @@ export function AICoach({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic, summary, item, mode }),
       });
-      const data = await response.json() as { content?: string; error?: string; sources?: AiSource[]; imageUrl?: string; savedIds?: string[]; saveError?: string };
+      const data = await response.json() as { content?: string; error?: string; sources?: AiSource[]; imageUrl?: string; savedIds?: string[]; saveError?: string; generated?: Array<{ prompt: string; answer?: string; options?: string[]; answerIndex?: number | null; explanation?: string; source?: string }> };
       setAnswer(normalizeAiText(data.content ?? data.error ?? "ยังไม่มีคำตอบ"));
       setSources(data.sources ?? []);
       setImageUrl(data.imageUrl ?? "");
       setSavedMessage(data.saveError ?? (data.savedIds?.length ? `บันทึกลงฐานข้อมูลแล้ว ${data.savedIds.length} รายการ` : ""));
+      if ((mode === "generate-recall" || mode === "generate-quiz") && data.savedIds?.length && data.generated?.length && onGenerated) {
+        const kind = mode === "generate-recall" ? "recall" : "quiz";
+        const generated = data.generated.flatMap((draft, index) => {
+          const generatedItemId = data.savedIds?.[index];
+          if (!generatedItemId || !draft.prompt) return [];
+          return [{
+            id: `ai-${generatedItemId}`,
+            generatedItemId,
+            kind,
+            prompt: draft.prompt,
+            answer: draft.answer,
+            options: draft.options,
+            answerIndex: draft.answerIndex,
+            explanation: draft.explanation ?? "เฉลยจาก AI โดยยึดเนื้อหาข้อที่กำลังเปิด",
+            source: draft.source ?? item.source ?? "AI Coach",
+          } satisfies AiGeneratedItem];
+        });
+        onGenerated(generated);
+      }
     } catch {
       setAnswer("เชื่อมต่อ AI ไม่สำเร็จ ลองใหม่อีกครั้ง");
     } finally {
