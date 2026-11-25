@@ -707,6 +707,21 @@ def parse_source() -> tuple[list[dict], list[dict]]:
     additional_recalls.extend(legal_recalls)
     additional_quizzes.extend(legal_quizzes)
 
+    def is_legal_topic(item: dict) -> bool:
+        topic = item.get("topic")
+        return isinstance(topic, dict) and topic.get("slug") == "digital-law"
+
+    # The TSV is the complete replacement for the legal lesson. Do not let
+    # older attachment sets leak their legacy legal rows back into this topic.
+    additional_recalls = [
+        item for item in additional_recalls
+        if not is_legal_topic(item) or str(item.get("sourceId", "")).startswith("part-06-legal")
+    ]
+    additional_quizzes = [
+        item for item in additional_quizzes
+        if not is_legal_topic(item) or str(item.get("sourceId", "")).startswith("part-06-legal")
+    ]
+
     unique_recalls: list[dict] = []
     seen_recalls: set[str] = set()
     # Remove the old 331-390 legal block from the original 560-card seed.
