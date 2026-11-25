@@ -8,7 +8,7 @@
 npm install
 copy .env.example .env.local
 npm run db:generate
-npm run db:push
+npm run db:migrate:deploy
 npm run db:seed
 npm run dev
 ```
@@ -21,7 +21,9 @@ Google OAuth callback URL: `http://localhost:3000/api/auth/callback/google`
 
 ถ้ายังไม่ตั้งค่า OAuth แอปยังเปิดอ่านบทเรียน การ์ด และทำแบบทดสอบได้ โดยความคืบหน้าในโหมดผู้เยี่ยมชมจะเก็บใน browser localStorage
 
-`npm run db:seed` จะเก็บบทเรียน/ข้อสอบที่ผ่านการกลั่นและบทสรุป AI-friendly ลง PostgreSQL พร้อมใช้รหัสการ์ดเดียวกับหน้าเว็บ เพื่อให้ความคืบหน้าของผู้ใช้บันทึกได้ถูกต้อง
+`npm run db:seed` จะเก็บข้อมูลทุกหมวด รวมชุด Recall และข้อสอบทั้งหมด ลง PostgreSQL โดยใช้รหัสแบบผูกกับหมวดเพื่อไม่ให้รายการจากไฟล์หลายชุดชนกัน ส่วน `npm run db:seed:if-needed` จะตรวจจำนวนข้อมูลก่อนและไม่ลบข้อมูลเดิม
+
+สำหรับฐานข้อมูลเดิมให้ใช้ `npm run db:migrate:deploy` ห้ามใช้ `prisma db push` กับฐานข้อมูล production เพราะอาจลบตาราง legacy ได้ การ deploy Vercel จะรัน migration แบบเพิ่มอย่างปลอดภัยและ seed ข้อมูลอัตโนมัติใน `vercel-build`
 
 ## ตั้งค่า Groq AI แบบทีละขั้น
 
@@ -35,7 +37,9 @@ GROQ_MODEL="openai/gpt-oss-20b"
 ```
 
 4. ปิดแล้วเปิด `npm run dev` ใหม่ จากนั้นเข้าสู่ระบบ Google และกดปุ่ม AI Coach ในหน้าเรียน
-5. ถ้าใช้ Vercel ให้ไปที่ Project Settings → Environment Variables เพิ่ม `GROQ_API_KEY` และ `GROQ_MODEL` ในช่อง Production แล้วกด Redeploy
+5. ถ้าใช้ Vercel ให้ไปที่ Project Settings → Environment Variables เพิ่ม `GROQ_API_KEY` และ `GROQ_MODEL` ในช่อง Production แล้วกด Redeploy โดยไม่ต้องใส่คีย์ในโค้ด
+
+AI Coach ใช้โมเดลข้อความ Groq เพื่ออธิบายเฉพาะการ์ดที่เปิดอยู่ มีปุ่มสร้าง Recall ใหม่และสร้างข้อสอบใหม่ ผลลัพธ์สองโหมดนี้จะถูกบันทึกใน PostgreSQL ของผู้ใช้โดยอัตโนมัติ ปุ่มทำเป็นภาพสรุปจะสร้าง SVG ภาษาไทยจากคำตอบและบันทึกไว้ด้วย โดย Groq เองเป็นโมเดลข้อความ ไม่ใช่โมเดลสร้างภาพ
 
 ถ้าเห็นข้อความ `ยังไม่ได้ตั้งค่า GROQ_API_KEY` แปลว่ายังไม่ได้เพิ่มคีย์ใน environment ที่กำลังใช้งาน ส่วนข้อมูล Recall และข้อสอบจะโหลดครบทั้งหมวด ไม่ตัดเหลือ 30 รายการ
 

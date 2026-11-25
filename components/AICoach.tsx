@@ -6,6 +6,7 @@ import { SpeakButton } from "@/components/SpeakButton";
 
 type AiSource = { source: string; page?: number; lesson?: string };
 export type AiItemContext = {
+  id?: string;
   kind: "recall" | "quiz";
   prompt: string;
   answer?: string;
@@ -38,26 +39,34 @@ export function AICoach({
 }) {
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<AiSource[]>([]);
+  const [imageUrl, setImageUrl] = useState("");
+  const [savedMessage, setSavedMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setAnswer("");
     setSources([]);
+    setImageUrl("");
+    setSavedMessage("");
   }, [item.prompt]);
 
-  async function ask(mode: "explain" | "memory" | "quiz") {
+  async function ask(mode: "explain" | "memory" | "quiz" | "generate-recall" | "generate-quiz" | "image") {
     setLoading(true);
     setAnswer("");
     setSources([]);
+    setImageUrl("");
+    setSavedMessage("");
     try {
       const response = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic, summary, item, mode }),
       });
-      const data = await response.json() as { content?: string; error?: string; sources?: AiSource[] };
+      const data = await response.json() as { content?: string; error?: string; sources?: AiSource[]; imageUrl?: string; savedIds?: string[]; saveError?: string };
       setAnswer(cleanAiText(data.content ?? data.error ?? "ยังไม่มีคำตอบ"));
       setSources(data.sources ?? []);
+      setImageUrl(data.imageUrl ?? "");
+      setSavedMessage(data.saveError ?? (data.savedIds?.length ? `บันทึกลงฐานข้อมูลแล้ว ${data.savedIds.length} รายการ` : ""));
     } catch {
       setAnswer("เชื่อมต่อ AI ไม่สำเร็จ ลองใหม่อีกครั้ง");
     } finally {
@@ -75,6 +84,9 @@ export function AICoach({
       <button onClick={() => ask("explain")} disabled={loading}><Lightbulb size={15} /> อธิบายข้อนี้</button>
       <button onClick={() => ask("memory")} disabled={loading}>ช่วยคิดวิธีจำข้อนี้</button>
       <button onClick={() => ask("quiz")} disabled={loading}>ถามต่อจากข้อนี้</button>
+      <button onClick={() => ask("generate-recall")} disabled={loading}>สร้าง Recall ใหม่</button>
+      <button onClick={() => ask("generate-quiz")} disabled={loading}>สร้างข้อสอบใหม่</button>
+      <button onClick={() => ask("image")} disabled={loading}>ทำเป็นภาพสรุป</button>
     </div>
     {loading && <p className="ai-status"><LoaderCircle size={15} className="spin" /> กำลังวิเคราะห์ข้อนี้...</p>}
     {answer && <div className="ai-answer">
@@ -82,6 +94,8 @@ export function AICoach({
       <div className="ai-answer-text">{answer}</div>
       {sources.length > 0 && <div className="ai-sources"><strong>ที่มา:</strong> {sources.map((source) => `${source.lesson ?? "หมวดเรียน"} · ${source.source}${source.page == null ? "" : ` หน้า ${source.page}`}`).join(" · ")}</div>}
     </div>}
+    {savedMessage && <p className="ai-saved-message">{savedMessage}</p>}
+    {imageUrl && <div className="ai-image-result"><img src={imageUrl} alt="ภาพสรุปจาก AI Coach" /></div>}
   </section>;
 }
 

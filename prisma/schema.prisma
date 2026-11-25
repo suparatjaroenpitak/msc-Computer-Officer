@@ -17,6 +17,7 @@ model User {
   sessions      Session[]
   progress      CardProgress[]
   attempts      QuizAttempt[]
+  generatedItems GeneratedStudyItem[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -125,4 +126,27 @@ model QuizAttempt {
   createdAt  DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId, createdAt])
+}
+
+model GeneratedStudyItem {
+  id           String   @id @default(cuid())
+  userId       String
+  itemType     String
+  mode         String
+  prompt       String   @db.Text
+  answer       String?  @db.Text
+  options      Json?
+  answerIndex  Int?
+  explanation  String?  @db.Text
+  source       String?  @db.Text
+  sourceItemId String?
+  lessonSlug   String?
+  rawResponse  String   @db.Text
+  imageSvg     String?  @db.Text
+  model        String
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, itemType])
 }

@@ -3,13 +3,53 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import type { StudyLesson } from "@/lib/content";
 import { getRequiredApiSession } from "@/lib/require-auth";
+import { prisma } from "@/lib/prisma";
 
 async function loadLesson(slug: string) {
-  if (slug.startsWith("user-") && /^[a-z0-9-]+$/.test(slug)) {
-    const filePath = path.join(process.cwd(), "content", "user-lessons", `${slug}.json`);
-    return JSON.parse(await readFile(filePath, "utf8")) as StudyLesson;
+  if (!slug.startsWith("user-") || !/^[a-z0-9-]+$/.test(slug)) return undefined;
+
+  // PostgreSQL is the source of truth in production. The file fallback keeps
+  // local development and a first deployment usable while the seed runs.
+  try {
+    const dbLesson = await prisma.lesson.findFirst({
+      where: { slug },
+      orderBy: { sortOrder: "asc" },
+      include: {
+        cards: { orderBy: { sortOrder: "asc" } },
+        questions: { orderBy: { sortOrder: "asc" } },
+      },
+    });
+    if (dbLesson) {
+      return {
+        slug: dbLesson.slug,
+        title: dbLesson.title,
+        summary: dbLesson.summary,
+        accent: "blue",
+        cards: dbLesson.cards.map((card) => ({
+          id: card.id,
+          prompt: card.prompt,
+          answer: card.answer,
+          explanation: card.explanation,
+          source: card.source,
+          difficulty: card.difficulty as StudyLesson["cards"][number]["difficulty"],
+        })),
+        questions: dbLesson.questions.map((question) => ({
+          id: question.id,
+          prompt: question.prompt,
+          options: Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === "string") : [],
+          answerIndex: question.answerIndex,
+          explanation: question.explanation,
+          source: question.source,
+        })),
+        notes: [],
+      } satisfies StudyLesson;
+    }
+  } catch (error) {
+    console.warn("Study database unavailable; using bundled content", error);
   }
-  return undefined;
+
+  const filePath = path.join(process.cwd(), "content", "user-lessons", `${slug}.json`);
+  return JSON.parse(await readFile(filePath, "utf8")) as StudyLesson;
 }
 
 export async function GET(request: Request) {
