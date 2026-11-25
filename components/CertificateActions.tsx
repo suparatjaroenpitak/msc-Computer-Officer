@@ -57,7 +57,7 @@ export function CertificateActions(props: CertificateActionsProps) {
   };
 
   const printPdf = () => {
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    const printWindow = window.open("", "_blank", "width=1200,height=900");
     if (!printWindow) return;
     const safeTitle = escapeHtml(props.title);
     const date = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
