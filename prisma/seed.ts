@@ -18,11 +18,18 @@ async function needsLegalReplacement(courseId: string, lessons: StudyLesson[]) {
       select: { id: true },
     });
     if (!expected || !dbLesson) continue;
-    const [cardCount, questionCount] = await Promise.all([
+    const [cardCount, questionCount, firstCard, firstQuestion] = await Promise.all([
       prisma.card.count({ where: { lessonId: dbLesson.id } }),
       prisma.question.count({ where: { lessonId: dbLesson.id } }),
+      prisma.card.findFirst({ where: { lessonId: dbLesson.id }, orderBy: { sortOrder: "asc" }, select: { prompt: true } }),
+      prisma.question.findFirst({ where: { lessonId: dbLesson.id }, orderBy: { sortOrder: "asc" }, select: { prompt: true } }),
     ]);
-    if (cardCount !== expected.cards.length || questionCount !== expected.questions.length) return true;
+    if (
+      cardCount !== expected.cards.length ||
+      questionCount !== expected.questions.length ||
+      (expected.cards.length > 0 && firstCard?.prompt !== expected.cards[0]?.prompt) ||
+      (expected.questions.length > 0 && firstQuestion?.prompt !== expected.questions[0]?.prompt)
+    ) return true;
   }
   return false;
 }
