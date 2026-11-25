@@ -14,6 +14,19 @@ export type AiItemContext = {
   source?: string;
 };
 
+function cleanAiText(value: string) {
+  return value
+    .replace(/```[\s\S]*?```/g, (block) => block.replace(/```[a-zA-Z]*\n?/g, ""))
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .replace(/^\s*[-*+•]\s+/gm, "")
+    .replace(/[*_~`>|]/g, "")
+    .replace(/[^\p{L}\p{N}\s.,:;!?()\/+\-%]/gu, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function AICoach({
   topic,
   summary,
@@ -43,7 +56,7 @@ export function AICoach({
         body: JSON.stringify({ topic, summary, item, mode }),
       });
       const data = await response.json() as { content?: string; error?: string; sources?: AiSource[] };
-      setAnswer(data.content ?? data.error ?? "ยังไม่มีคำตอบ");
+      setAnswer(cleanAiText(data.content ?? data.error ?? "ยังไม่มีคำตอบ"));
       setSources(data.sources ?? []);
     } catch {
       setAnswer("เชื่อมต่อ AI ไม่สำเร็จ ลองใหม่อีกครั้ง");
