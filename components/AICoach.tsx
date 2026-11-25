@@ -32,6 +32,10 @@ function normalizeAiText(value: string) {
   return value
     .replace(/\x60\x60\x60[\s\S]*?\x60\x60\x60/g, (block) => block.replace(/\x60\x60\x60[a-zA-Z]*\n?/g, ""))
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "($1 ÷ $2)")
+    .replace(/\\(?:times|cdot)/g, " × ")
+    .replace(/\\div/g, " ÷ ")
+    .replace(/\^\{([^{}]+)\}/g, " ยกกำลัง $1")
     .replace(/^\s*#{1,6}\s*/gm, "")
     .replace(/^\s*[-*+•]\s+/gm, "")
     .replace(/(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)/g, "$1 × $2")
@@ -42,6 +46,39 @@ function normalizeAiText(value: string) {
     .replace(/[ \t]*\n[ \t]*/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+type AiBlock = { title: string; lines: string[] };
+
+function splitAiBlocks(value: string): AiBlock[] {
+  const blocks: AiBlock[] = [];
+  let current: AiBlock = { title: "คำอธิบายจาก AI", lines: [] };
+  const headingPattern = /^(คำตอบสั้น|อธิบายง่าย|เหตุผล|วิธีจำ|จุดที่มักสับสน|ข้อที่สร้างใหม่(?:\s+\d+)?)\s*:?\s*(.*)$/;
+  for (const rawLine of value.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const match = line.match(headingPattern);
+    if (match) {
+      if (current.lines.length > 0) blocks.push(current);
+      current = { title: match[1], lines: match[2] ? [match[2]] : [] };
+    } else {
+      current.lines.push(line);
+    }
+  }
+  if (current.lines.length > 0) blocks.push(current);
+  return blocks.length > 0 ? blocks : [{ title: "คำอธิบายจาก AI", lines: [value] }];
+}
+
+function ReadableAiAnswer({ text }: { text: string }) {
+  return <div className="ai-readable">{splitAiBlocks(text).map((block, blockIndex) => <section className={"ai-block ai-block-" + blockIndex} key={block.title + blockIndex}>
+    <h4>{block.title}</h4>
+    <div className="ai-block-content">{block.lines.map((line, lineIndex) => {
+      const numbered = line.match(/^(\d+)[.)]\s*(.*)$/);
+      return numbered
+        ? <div className="ai-step" key={line + lineIndex}><span>{numbered[1]}</span><p>{numbered[2]}</p></div>
+        : <p key={line + lineIndex}>{line}</p>;
+    })}</div>
+  </section>)}</div>;
 }
 
 export function AICoach({
@@ -107,7 +144,7 @@ export function AICoach({
     {loading && <p className="ai-status"><LoaderCircle size={15} className="spin" /> กำลังวิเคราะห์ข้อนี้...</p>}
     {answer && <div className="ai-answer">
       <div className="ai-answer-top"><SpeakButton text={answer} /></div>
-      <div className="ai-answer-text">{answer}</div>
+      <ReadableAiAnswer text={answer} />
       {sources.length > 0 && <div className="ai-sources"><strong>ที่มา:</strong> {sources.map((source) => `${source.lesson ?? "หมวดเรียน"} · ${source.source}${source.page == null ? "" : ` หน้า ${source.page}`}`).join(" · ")}</div>}
     </div>}
     {savedMessage && <p className="ai-saved-message">{savedMessage}</p>}
